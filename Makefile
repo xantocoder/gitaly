@@ -13,6 +13,10 @@ ASSEMBLY_ROOT := $(TARGET_DIR)/assembly
 export GITALY_TEST_RUBY_DIR := $(BUILD_DIR)/ruby
 BUNDLE_FLAGS ?= --deployment
 
+ifdef BUNDLE_PATH
+  BUNDLE_FLAGS += --path $(BUNDLE_PATH)
+endif
+
 BUILDTIME = $(shell date -u +%Y%m%d.%H%M%S)
 VERSION_PREFIXED = $(shell git describe)
 VERSION = $(VERSION_PREFIXED:v%=%)
