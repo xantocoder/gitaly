@@ -453,6 +453,239 @@ func TestFailedUserFFBranchDueToHooks(t *testing.T) {
 	}
 }
 
+func TestSuccessfulUserMergeToRefRequest(t *testing.T) {
+	ctx, cancel := testhelper.Context()
+	defer cancel()
+
+	server, serverSocketPath := runOperationServiceServer(t)
+	defer server.Stop()
+
+	client, conn := newOperationClient(t, serverSocketPath)
+	defer conn.Close()
+
+	testRepo, testRepoPath, cleanupFn := testhelper.NewTestRepo(t)
+	defer cleanupFn()
+
+	prepareMergeBranch(t, testRepoPath)
+
+	targetRef := []byte("refs/merge-requests/x/merge")
+	mergeCommitMessage := "Merged by Gitaly"
+
+	request := &gitalypb.UserMergeToRefRequest{
+		Repository: testRepo,
+		SourceSha:  commitToMerge,
+		Branch:     []byte(mergeBranchName),
+		TargetRef:  targetRef,
+		User:       mergeUser,
+		Message:    []byte(mergeCommitMessage),
+	}
+
+	resp, err := client.UserMergeToRef(ctx, request)
+	require.NoError(t, err)
+
+	commit, err := gitlog.GetCommit(ctx, testRepo, string(targetRef))
+	require.NoError(t, err, "look up git commit after call has finished")
+
+	require.Contains(t, commit.ParentIds, mergeBranchHeadBefore, "merge parents must include previous HEAD of branch")
+	require.Contains(t, commit.ParentIds, commitToMerge, "merge parents must include commit to merge")
+
+	require.True(t, strings.HasPrefix(string(commit.Body), mergeCommitMessage), "expected %q to start with %q", commit.Body, mergeCommitMessage)
+
+	author := commit.Author
+	require.Equal(t, mergeUser.Name, author.Name)
+	require.Equal(t, mergeUser.Email, author.Email)
+
+	require.Equal(t, resp.CommitId, commit.Id)
+}
+
+func TestSuccessfullyOverrideRefOnUserMergeToRefRequest(t *testing.T) {
+	ctx, cancel := testhelper.Context()
+	defer cancel()
+
+	server, serverSocketPath := runOperationServiceServer(t)
+	defer server.Stop()
+
+	client, conn := newOperationClient(t, serverSocketPath)
+	defer conn.Close()
+
+	testRepo, testRepoPath, cleanupFn := testhelper.NewTestRepo(t)
+	defer cleanupFn()
+
+	prepareMergeBranch(t, testRepoPath)
+
+	targetRef := []byte("refs/merge-requests/x/merge")
+	mergeCommitMessage := "Merged by Gitaly"
+
+	beforeRefreshCommitSha := "a5391128b0ef5d21df5dd23d98557f4ef12fae20"
+	out, err := exec.Command("git", "-C", testRepoPath, "update-ref", string(targetRef), beforeRefreshCommitSha).CombinedOutput()
+	require.NoError(t, err, "give an existing state to the target ref: %s", out)
+
+	beforeRefreshCommit, err := gitlog.GetCommit(ctx, testRepo, string(targetRef))
+	require.NoError(t, err, "look up git commit before refresh ref call")
+	require.Contains(t, beforeRefreshCommit.Id, beforeRefreshCommitSha, "target ref must have a state before receiving the refresh")
+
+	request := &gitalypb.UserMergeToRefRequest{
+		Repository: testRepo,
+		SourceSha:  commitToMerge,
+		Branch:     []byte(mergeBranchName),
+		TargetRef:  targetRef,
+		User:       mergeUser,
+		Message:    []byte(mergeCommitMessage),
+	}
+
+	resp, err := client.UserMergeToRef(ctx, request)
+	require.NoError(t, err)
+
+	commit, err := gitlog.GetCommit(ctx, testRepo, string(targetRef))
+	require.NoError(t, err, "look up git commit after call has finished")
+
+	require.Contains(t, commit.ParentIds, mergeBranchHeadBefore, "merge parents must include previous HEAD of branch")
+	require.Contains(t, commit.ParentIds, commitToMerge, "merge parents must include commit to merge")
+
+	require.True(t, strings.HasPrefix(string(commit.Body), mergeCommitMessage), "expected %q to start with %q", commit.Body, mergeCommitMessage)
+
+	author := commit.Author
+	require.Equal(t, mergeUser.Name, author.Name)
+	require.Equal(t, mergeUser.Email, author.Email)
+
+	require.Equal(t, resp.CommitId, commit.Id)
+}
+
+func TestFailedUserMergeToRefRequest(t *testing.T) {
+	server, serverSocketPath := runOperationServiceServer(t)
+	defer server.Stop()
+
+	client, conn := newOperationClient(t, serverSocketPath)
+	defer conn.Close()
+
+	testRepo, testRepoPath, cleanupFn := testhelper.NewTestRepo(t)
+	defer cleanupFn()
+
+	prepareMergeBranch(t, testRepoPath)
+
+	validTargetRef := []byte("refs/merge-requests/x/merge")
+
+	testCases := []struct {
+		desc      string
+		user      *gitalypb.User
+		branch    []byte
+		targetRef []byte
+		sourceSha string
+		repo      *gitalypb.Repository
+		code      codes.Code
+	}{
+		{
+			desc:      "empty repository",
+			user:      mergeUser,
+			branch:    []byte(branchName),
+			sourceSha: commitToMerge,
+			targetRef: validTargetRef,
+			code:      codes.InvalidArgument,
+		},
+		{
+			desc:      "empty user",
+			repo:      testRepo,
+			branch:    []byte(branchName),
+			sourceSha: commitToMerge,
+			targetRef: validTargetRef,
+			code:      codes.InvalidArgument,
+		},
+		{
+			desc:      "empty source SHA",
+			repo:      testRepo,
+			user:      mergeUser,
+			branch:    []byte(branchName),
+			targetRef: validTargetRef,
+			code:      codes.InvalidArgument,
+		},
+		{
+			desc:      "non-existing commit",
+			repo:      testRepo,
+			user:      mergeUser,
+			branch:    []byte(branchName),
+			sourceSha: "f001",
+			targetRef: validTargetRef,
+			code:      codes.InvalidArgument,
+		},
+		{
+			desc:      "empty branch",
+			repo:      testRepo,
+			user:      mergeUser,
+			sourceSha: commitToMerge,
+			targetRef: validTargetRef,
+			code:      codes.InvalidArgument,
+		},
+		{
+			desc:      "non-existing branch",
+			repo:      testRepo,
+			user:      mergeUser,
+			branch:    []byte("this-isnt-real"),
+			sourceSha: commitToMerge,
+			targetRef: validTargetRef,
+			code:      codes.InvalidArgument,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.desc, func(t *testing.T) {
+			ctx, cancel := testhelper.Context()
+			defer cancel()
+
+			request := &gitalypb.UserMergeToRefRequest{
+				Repository: testCase.repo,
+				User:       testCase.user,
+				Branch:     testCase.branch,
+				SourceSha:  testCase.sourceSha,
+				TargetRef:  testCase.targetRef,
+			}
+			_, err := client.UserMergeToRef(ctx, request)
+			testhelper.RequireGrpcError(t, err, testCase.code)
+		})
+	}
+}
+
+func TestUserMergeToRefFailedDueToHooksRequest(t *testing.T) {
+	server, serverSocketPath := runOperationServiceServer(t)
+	defer server.Stop()
+
+	client, conn := newOperationClient(t, serverSocketPath)
+	defer conn.Close()
+
+	testRepo, testRepoPath, cleanupFn := testhelper.NewTestRepo(t)
+	defer cleanupFn()
+
+	prepareMergeBranch(t, testRepoPath)
+
+	targetRef := []byte("refs/merge-requests/x/merge")
+	mergeCommitMessage := "Merged by Gitaly"
+
+	request := &gitalypb.UserMergeToRefRequest{
+		Repository: testRepo,
+		SourceSha:  commitToMerge,
+		Branch:     []byte(mergeBranchName),
+		TargetRef:  targetRef,
+		User:       mergeUser,
+		Message:    []byte(mergeCommitMessage),
+	}
+
+	hookContent := []byte("#!/bin/sh\necho 'failure'\nexit 1")
+
+	for _, hookName := range gitlabPreHooks {
+		t.Run(hookName, func(t *testing.T) {
+			remove, err := OverrideHooks(hookName, hookContent)
+			require.NoError(t, err)
+			defer remove()
+
+			ctx, cancel := testhelper.Context()
+			defer cancel()
+
+			resp, err := client.UserMergeToRef(ctx, request)
+			require.Nil(t, err)
+			require.Contains(t, resp.PreReceiveError, "failure")
+		})
+	}
+}
+
 func prepareMergeBranch(t *testing.T, testRepoPath string) {
 	deleteBranch(testRepoPath, mergeBranchName)
 	out, err := exec.Command("git", "-C", testRepoPath, "branch", mergeBranchName, mergeBranchHeadBefore).CombinedOutput()
