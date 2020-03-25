@@ -349,8 +349,7 @@ module Gitlab
         rugged.diff(sha1, sha2).size.positive?
       end
 
-      def rebase(user, rebase_id, branch:, branch_sha:, remote_repository:, remote_branch:, push_options: nil)
-        worktree = Gitlab::Git::Worktree.new(path, REBASE_WORKTREE_PREFIX, rebase_id)
+      def rebase(user, _rebase_id, branch:, branch_sha:, remote_repository:, remote_branch:, push_options: nil)
         env = git_env.merge(user.git_env)
 
         if remote_repository.is_a?(RemoteRepository)
@@ -360,29 +359,29 @@ module Gitlab
           remote_repo_path = remote_repository.path
         end
 
-        diff_range = "#{remote_branch}...#{branch}"
-        diff_files = begin
-                       run_git!(
-                         %W[diff --name-only #{diff_range}]
-                       ).chomp
-                     rescue GitError
-                       []
-                     end
+        run_git!(
+          %W[fetch #{remote_repo_path} #{remote_branch}],
+          chdir: path, env: env, include_stderr: true
+        )
 
-        with_worktree(worktree, branch, sparse_checkout_files: diff_files, env: env) do
-          run_git!(
-            %W[pull --rebase #{remote_repo_path} #{remote_branch}],
-            chdir: worktree.path, env: env, include_stderr: true
-          )
+        rebase = Rugged::Rebase.new(rugged, branch, remote_branch, inmemory: true, fail_on_conflict: false)
 
-          rebase_sha = run_git!(%w[rev-parse HEAD], chdir: worktree.path, env: env).strip
+        # Step through each patch and check for conflicts
+        while rebase.next
+          index = rebase.inmemory_index
 
-          yield rebase_sha if block_given?
-
-          update_branch(branch, user: user, newrev: rebase_sha, oldrev: branch_sha, push_options: push_options)
-
-          rebase_sha
+          if index.nil? || index.conflicts?
+            rebase.abort
+            raise GitError, "Merge conflict"
+          end
         end
+
+        committer = user_to_committer(user)
+        rebase_sha = rebase.commit(committer: committer)
+
+        yield rebase_sha if block_given?
+
+        update_branch(branch, user: user, newrev: rebase_sha, oldrev: branch_sha, push_options: push_options)
       end
 
       def squash(user, squash_id, start_sha:, end_sha:, author:, message:)
