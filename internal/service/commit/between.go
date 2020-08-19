@@ -29,9 +29,20 @@ func (s *server) CommitsBetween(in *gitalypb.CommitsBetweenRequest, stream gital
 	}
 
 	sender := &commitsBetweenSender{stream: stream}
-	revisionRange := fmt.Sprintf("%s..%s", in.GetFrom(), in.GetTo())
+	from := in.GetFrom()
+	var limit int32 = 2147483647
 
-	if err := sendCommits(stream.Context(), sender, in.GetRepository(), []string{revisionRange}, nil, nil, git.Flag{Name: "--reverse"}); err != nil {
+	if in.PaginationParams != nil {
+		from = []byte(in.PaginationParams.GetPageToken())
+		limit = in.PaginationParams.GetLimit()
+	}
+
+	revisionRange := fmt.Sprintf("%s..%s", from, in.GetTo())
+
+	if err := sendCommits(stream.Context(), sender, in.GetRepository(),
+		[]string{revisionRange}, nil, nil,
+		git.Flag{Name: "--reverse"},
+		git.ValueFlag{Name: "--max-count", Value: string(limit)}); err != nil {
 		return helper.ErrInternal(err)
 	}
 

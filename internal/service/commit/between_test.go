@@ -111,10 +111,11 @@ func TestSuccessfulCommitsBetween(t *testing.T) {
 		},
 	}
 	testCases := []struct {
-		description     string
-		from            []byte
-		to              []byte
-		expectedCommits []*gitalypb.GitCommit
+		description      string
+		from             []byte
+		to               []byte
+		paginationParams *gitalypb.PaginationParameter
+		expectedCommits  []*gitalypb.GitCommit
 	}{
 		{
 			description:     "From hash to hash",
@@ -163,6 +164,16 @@ func TestSuccessfulCommitsBetween(t *testing.T) {
 			from:            fakeRef,
 			to:              to,
 			expectedCommits: []*gitalypb.GitCommit{},
+		},
+		{
+			description: "using pagination to limit and offset results",
+			from:        from,
+			to:          to,
+			paginationParams: &gitalypb.PaginationParameter{
+				Limit:     2,
+				PageToken: "4a24d82dbca5c11c61556f3b35ca472b7463187e",
+			},
+			expectedCommits: expectedCommits[1:2],
 		},
 	}
 	for _, tc := range testCases {
