@@ -13,6 +13,10 @@ import (
 type Node struct {
 	// Storage is the name of the storage node.
 	Storage string
+	// Address is the address of the node.
+	Address string
+	// Token is the authentication token of the node.
+	Token string
 	// Connection is a gRPC connection to the storage node.
 	Connection *grpc.ClientConn
 }

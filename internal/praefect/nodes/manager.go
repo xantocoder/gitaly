@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/sirupsen/logrus"
@@ -23,6 +24,8 @@ import (
 	"gitlab.com/gitlab-org/gitaly/internal/praefect/nodes/tracker"
 	"gitlab.com/gitlab-org/gitaly/internal/praefect/protoregistry"
 	prommetrics "gitlab.com/gitlab-org/gitaly/internal/prometheus/metrics"
+	correlation "gitlab.com/gitlab-org/labkit/correlation/grpc"
+	grpctracing "gitlab.com/gitlab-org/labkit/tracing/grpc"
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
@@ -66,6 +69,10 @@ type Manager interface {
 	// GetSyncedNode returns a random storage node based on the state of the replication.
 	// It returns primary in case there are no up to date secondaries or error occurs.
 	GetSyncedNode(ctx context.Context, virtualStorageName, repoPath string) (Node, error)
+	// HealthyNodes returns healthy storages by virtual storage.
+	HealthyNodes() map[string][]string
+	// Nodes returns nodes by their virtual storages.
+	Nodes() map[string][]Node
 }
 
 const (
@@ -96,8 +103,11 @@ type Mgr struct {
 	strategies map[string]leaderElectionStrategy
 	db         *sql.DB
 	rs         datastore.RepositoryStore
+	// nodes
+	nodes map[string][]Node
 }
 
+//
 // leaderElectionStrategy defines the interface by which primary and
 // secondaries are managed.
 type leaderElectionStrategy interface {
@@ -110,7 +120,30 @@ type leaderElectionStrategy interface {
 // should not be used for a new request
 var ErrPrimaryNotHealthy = errors.New("primary is not healthy")
 
-const dialTimeout = 10 * time.Second
+func Dial(address, token, storage string, registry *protoregistry.Registry, errorTracker tracker.ErrorTracker) (*grpc.ClientConn, error) {
+	streamInterceptors := []grpc.StreamClientInterceptor{
+		grpc_prometheus.StreamClientInterceptor,
+		grpctracing.StreamClientTracingInterceptor(),
+		correlation.StreamClientCorrelationInterceptor(),
+	}
+
+	if errorTracker != nil {
+		streamInterceptors = append(streamInterceptors, middleware.StreamErrorHandler(registry, errorTracker, storage))
+	}
+
+	return client.Dial(address, append(
+		[]grpc.DialOption{
+			grpc.WithDefaultCallOptions(grpc.ForceCodec(proxy.NewCodec())),
+			grpc.WithPerRPCCredentials(gitalyauth.RPCCredentialsV2(token)),
+			grpc.WithStreamInterceptor(grpc_middleware.ChainStreamClient(streamInterceptors...)),
+			grpc.WithUnaryInterceptor(grpc_middleware.ChainUnaryClient(
+				grpc_prometheus.UnaryClientInterceptor,
+				grpctracing.UnaryClientTracingInterceptor(),
+				correlation.UnaryClientCorrelationInterceptor(),
+			)),
+		}),
+	)
+}
 
 // NewManager creates a new NodeMgr based on virtual storage configs
 func NewManager(
@@ -122,38 +155,28 @@ func NewManager(
 	registry *protoregistry.Registry,
 	errorTracker tracker.ErrorTracker,
 	dialOpts ...grpc.DialOption) (*Mgr, error) {
+	if !c.Failover.Enabled {
+		errorTracker = nil
+	}
+
+	nodes := map[string][]Node{}
 	strategies := make(map[string]leaderElectionStrategy, len(c.VirtualStorages))
-
-	ctx, cancel := context.WithTimeout(context.Background(), dialTimeout)
-	defer cancel()
-
 	for _, virtualStorage := range c.VirtualStorages {
 		log = log.WithField("virtual_storage", virtualStorage.Name)
 
 		ns := make([]*nodeStatus, 0, len(virtualStorage.Nodes))
 		for _, node := range virtualStorage.Nodes {
-			streamInterceptors := []grpc.StreamClientInterceptor{
-				grpc_prometheus.StreamClientInterceptor,
-			}
-
-			if c.Failover.Enabled && errorTracker != nil {
-				streamInterceptors = append(streamInterceptors, middleware.StreamErrorHandler(registry, errorTracker, node.Storage))
-			}
-
-			conn, err := client.DialContext(ctx, node.Address,
-				append(
-					[]grpc.DialOption{
-						grpc.WithDefaultCallOptions(grpc.ForceCodec(proxy.NewCodec())),
-						grpc.WithPerRPCCredentials(gitalyauth.RPCCredentialsV2(node.Token)),
-						grpc.WithChainStreamInterceptor(streamInterceptors...),
-						grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-					}, dialOpts...),
-			)
+			conn, err := Dial(node.Address, node.Token, node.Storage, registry, errorTracker)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("dial: %w", err)
 			}
+
 			cs := newConnectionStatus(*node, conn, log, latencyHistogram, errorTracker)
 			ns = append(ns, cs)
+		}
+
+		for _, node := range ns {
+			nodes[virtualStorage.Name] = append(nodes[virtualStorage.Name], node)
 		}
 
 		if c.Failover.Enabled {
@@ -171,6 +194,7 @@ func NewManager(
 		db:         db,
 		strategies: strategies,
 		rs:         rs,
+		nodes:      nodes,
 	}, nil
 }
 
@@ -269,6 +293,24 @@ func (n *Mgr) GetSyncedNode(ctx context.Context, virtualStorageName, repoPath st
 
 	return healthyStorages[rand.Intn(len(healthyStorages))], nil
 }
+
+func (n *Mgr) HealthyNodes() map[string][]string {
+	healthy := make(map[string][]string, len(n.nodes))
+	for vs, nodes := range n.nodes {
+		storages := make([]string, len(nodes))
+		for _, node := range nodes {
+			if node.IsHealthy() {
+				storages = append(storages, node.GetStorage())
+			}
+		}
+
+		healthy[vs] = storages
+	}
+
+	return healthy
+}
+
+func (n *Mgr) Nodes() map[string][]Node { return n.nodes }
 
 func newConnectionStatus(node config.Node, cc *grpc.ClientConn, l logrus.FieldLogger, latencyHist prommetrics.HistogramVec, errorTracker tracker.ErrorTracker) *nodeStatus {
 	return &nodeStatus{

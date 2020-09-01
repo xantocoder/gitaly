@@ -44,6 +44,10 @@ func toNodeAssertion(n Node) *nodeAssertion {
 func assertShard(t *testing.T, exp shardAssertion, act Shard) {
 	t.Helper()
 
+	if exp.Secondaries == nil {
+		exp.Secondaries = make([]nodeAssertion, 0)
+	}
+
 	actSecondaries := make([]nodeAssertion, 0, len(act.Secondaries))
 	for _, n := range act.Secondaries {
 		actSecondaries = append(actSecondaries, *toNodeAssertion(n))

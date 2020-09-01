@@ -86,6 +86,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -262,8 +263,30 @@ func run(cfgs []starter.Config, conf config.Config) error {
 	if err != nil {
 		return err
 	}
-	nodeManager.Start(conf.Failover.BootstrapInterval.Duration(), conf.Failover.MonitorInterval.Duration())
-	logger.Info("background started: gitaly nodes health monitoring")
+
+	healthChecker := praefect.HealthChecker(nodeManager)
+	nodeSet := praefect.NodeSetFromNodeManager(nodeManager)
+	router := praefect.NewNodeManagerRouter(nodeManager, rs)
+	if conf.Failover.ElectionStrategy == "per_repository" {
+		nodeSet, err = praefect.DialNodes(conf.VirtualStorages, protoregistry.GitalyProtoPreregistered, errTracker)
+		if err != nil {
+			return fmt.Errorf("dial nodes: %w", err)
+		}
+		defer nodeSet.Close()
+
+		hm := nodes.NewHealthManager(logger, db, nodes.GeneratePraefectName(conf, logger), nodeSet.HealthClients())
+		go hm.Run(ctx, helper.NewTimerTicker(time.Second))
+		healthChecker = hm
+
+		elector := nodes.NewPerRepositoryElector(logger, db, hm)
+		go elector.Run(ctx, hm.Updated())
+
+		router = praefect.NewPerRepositoryRouter(nodeSet.Connections(), elector, hm, praefect.RandomFunc(rand.Intn), rs)
+	} else {
+		logger.Infof("election strategy: %q", conf.Failover.ElectionStrategy)
+		nodeManager.Start(conf.Failover.BootstrapInterval.Duration(), conf.Failover.MonitorInterval.Duration())
+		logger.Info("background started: gitaly nodes health monitoring")
+	}
 
 	var (
 		// top level server dependencies
@@ -272,7 +295,7 @@ func run(cfgs []starter.Config, conf config.Config) error {
 		coordinator = praefect.NewCoordinator(
 			queue,
 			rs,
-			praefect.NewNodeManagerRouter(nodeManager, rs),
+			router,
 			transactionManager,
 			conf,
 			protoregistry.GitalyProtoPreregistered,
@@ -283,7 +306,8 @@ func run(cfgs []starter.Config, conf config.Config) error {
 			conf.VirtualStorageNames(),
 			queue,
 			rs,
-			nodeManager,
+			healthChecker,
+			nodeSet,
 			praefect.WithDelayMetric(delayMetric),
 			praefect.WithLatencyMetric(latencyMetric),
 			praefect.WithDequeueBatchSize(conf.Replication.BatchSize),
@@ -351,7 +375,7 @@ func run(cfgs []starter.Config, conf config.Config) error {
 		if conf.MemoryQueueEnabled {
 			logger.Warn("Disabled automatic reconciliation as it is only implemented using SQL queue and in-memory queue is configured.")
 		} else {
-			r := reconciler.NewReconciler(logger, db, nodeManager, conf.StorageNames(), conf.Reconciliation.HistogramBuckets)
+			r := reconciler.NewReconciler(logger, db, healthChecker, conf.StorageNames(), conf.Reconciliation.HistogramBuckets)
 			prometheus.MustRegister(r)
 			go r.Run(ctx, helper.NewTimerTicker(interval))
 		}
