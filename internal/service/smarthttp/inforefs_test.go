@@ -14,11 +14,13 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/gitlab-org/gitaly/internal/cache"
 	"gitlab.com/gitlab-org/gitaly/internal/config"
 	"gitlab.com/gitlab-org/gitaly/internal/git"
 	"gitlab.com/gitlab-org/gitaly/internal/git/objectpool"
+	"gitlab.com/gitlab-org/gitaly/internal/git/pktline"
 	"gitlab.com/gitlab-org/gitaly/internal/git/stats"
 	"gitlab.com/gitlab-org/gitaly/internal/helper"
 	"gitlab.com/gitlab-org/gitaly/internal/tempdir"
@@ -26,6 +28,10 @@ import (
 	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
 	"gitlab.com/gitlab-org/gitaly/streamio"
 	"google.golang.org/grpc/codes"
+)
+
+const (
+	zeroID = "78fb81a02b03f0013360292ec5106763af32c287"
 )
 
 func TestSuccessfulInfoRefsUploadPack(t *testing.T) {
@@ -40,11 +46,21 @@ func TestSuccessfulInfoRefsUploadPack(t *testing.T) {
 	ctx, cancel := testhelper.Context()
 	defer cancel()
 
-	response, err := makeInfoRefsUploadPackRequest(ctx, t, serverSocketPath, rpcRequest)
-	require.NoError(t, err)
-	assertGitRefAdvertisement(t, "InfoRefsUploadPack", string(response), "001e# service=git-upload-pack", "0000", []string{
-		"003ef4e6814c3e4e7a0de82a9e7cd20c626cc963a2f8 refs/tags/v1.0.0",
-		"00416f6d7e7ed97bb5f0054f2b1df789b39ca89b6ff9 refs/tags/v1.0.0^{}",
+	assertFunc := func(response []byte) {
+		assertGitRefAdvertisement(t, "InfoRefsUploadPack", string(response), "001e# service=git-upload-pack", "0000", []string{
+			"003ef4e6814c3e4e7a0de82a9e7cd20c626cc963a2f8 refs/tags/v1.0.0",
+			"00416f6d7e7ed97bb5f0054f2b1df789b39ca89b6ff9 refs/tags/v1.0.0^{}",
+		})
+	}
+	t.Run("raw", func(t *testing.T) {
+		response, err := makeInfoRefsUploadPackRequest(ctx, t, serverSocketPath, rpcRequest)
+		require.NoError(t, err)
+		assertFunc(response)
+	})
+	t.Run("parsed", func(t *testing.T) {
+		caps, refs, err := makeParsedInfoRefsUploadPackRequest(ctx, t, serverSocketPath, requestToParsedRequest(rpcRequest))
+		require.NoError(t, err)
+		assertFunc(unparse(t, caps, refs))
 	})
 }
 
@@ -61,15 +77,24 @@ func TestSuccessfulInfoRefsUploadWithPartialClone(t *testing.T) {
 		Repository: testRepo,
 	}
 
-	partialResponse, err := makeInfoRefsUploadPackRequest(ctx, t, serverSocketPath, request)
-	require.NoError(t, err)
-	partialRefs := stats.Get{}
-	err = partialRefs.Parse(bytes.NewReader(partialResponse))
-	require.NoError(t, err)
-
-	for _, c := range []string{"allow-tip-sha1-in-want", "allow-reachable-sha1-in-want", "filter"} {
-		require.Contains(t, partialRefs.Caps, c)
+	assertFunc := func(caps []string) {
+		for _, c := range []string{"allow-tip-sha1-in-want", "allow-reachable-sha1-in-want", "filter"} {
+			require.Contains(t, caps, c)
+		}
 	}
+	t.Run("raw", func(t *testing.T) {
+		partialResponse, err := makeInfoRefsUploadPackRequest(ctx, t, serverSocketPath, request)
+		require.NoError(t, err)
+		partialRefs := stats.Get{}
+		err = partialRefs.Parse(bytes.NewReader(partialResponse))
+		require.NoError(t, err)
+		assertFunc(partialRefs.Caps)
+	})
+	t.Run("parsed", func(t *testing.T) {
+		caps, _, err := makeParsedInfoRefsUploadPackRequest(ctx, t, serverSocketPath, requestToParsedRequest(request))
+		require.NoError(t, err)
+		assertFunc(caps)
+	})
 }
 
 func TestSuccessfulInfoRefsUploadPackWithGitConfigOptions(t *testing.T) {
@@ -88,10 +113,19 @@ func TestSuccessfulInfoRefsUploadPackWithGitConfigOptions(t *testing.T) {
 
 	ctx, cancel := testhelper.Context()
 	defer cancel()
-
-	response, err := makeInfoRefsUploadPackRequest(ctx, t, serverSocketPath, rpcRequest)
-	require.NoError(t, err)
-	assertGitRefAdvertisement(t, "InfoRefsUploadPack", string(response), "001e# service=git-upload-pack", "0000", []string{})
+	assertFunc := func(response []byte) {
+		assertGitRefAdvertisement(t, "InfoRefsUploadPack", string(response), "001e# service=git-upload-pack", "0000", []string{})
+	}
+	t.Run("raw", func(t *testing.T) {
+		response, err := makeInfoRefsUploadPackRequest(ctx, t, serverSocketPath, rpcRequest)
+		require.NoError(t, err)
+		assertFunc(response)
+	})
+	t.Run("parsed", func(t *testing.T) {
+		caps, refs, err := makeParsedInfoRefsUploadPackRequest(ctx, t, serverSocketPath, requestToParsedRequest(rpcRequest))
+		require.NoError(t, err)
+		assertFunc(unparse(t, caps, refs))
+	})
 }
 
 func TestSuccessfulInfoRefsUploadPackWithGitProtocol(t *testing.T) {
@@ -114,6 +148,7 @@ func TestSuccessfulInfoRefsUploadPackWithGitProtocol(t *testing.T) {
 	defer cancel()
 
 	c, err := client.InfoRefsUploadPack(ctx, rpcRequest)
+	require.NoError(t, err)
 
 	for {
 		_, err := c.Recv()
@@ -122,8 +157,6 @@ func TestSuccessfulInfoRefsUploadPackWithGitProtocol(t *testing.T) {
 			break
 		}
 	}
-
-	require.NoError(t, err)
 
 	envData, err := testhelper.GetGitEnvData()
 
@@ -146,6 +179,84 @@ func makeInfoRefsUploadPackRequest(ctx context.Context, t *testing.T, serverSock
 	}))
 
 	return response, err
+}
+
+func makeParsedInfoRefsUploadPackRequest(ctx context.Context, t *testing.T, serverSocketPath string, rpcRequest *gitalypb.ParsedInfoRefsRequest) ([]string, []*gitalypb.Ref, error) {
+	client, conn := newSmartHTTPClient(t, serverSocketPath)
+	defer conn.Close()
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	c, err := client.ParsedInfoRefsUploadPack(ctx, rpcRequest)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var caps []string
+	var refs []*gitalypb.Ref
+	firstMsg := true
+
+	for {
+		resp, err := c.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, nil, err
+		}
+		if firstMsg {
+			caps = resp.Capabilities
+			firstMsg = false
+		} else {
+			assert.Empty(t, resp.Capabilities)
+		}
+		refs = append(refs, resp.Refs...)
+	}
+
+	return caps, refs, err
+}
+
+func requestToParsedRequest(req *gitalypb.InfoRefsRequest) *gitalypb.ParsedInfoRefsRequest {
+	return &gitalypb.ParsedInfoRefsRequest{
+		Repository:       req.Repository,
+		GitConfigOptions: req.GitConfigOptions,
+		GitProtocol:      req.GitProtocol,
+	}
+}
+
+func unparse(t *testing.T, caps []string, refs []*gitalypb.Ref) []byte {
+	var buf bytes.Buffer
+
+	_, err := pktline.WriteString(&buf, "# service=git-upload-pack\n")
+	require.NoError(t, err)
+
+	err = pktline.WriteFlush(&buf)
+	require.NoError(t, err)
+
+	if len(refs) == 0 {
+		refs = []*gitalypb.Ref{
+			{
+				Name:     []byte("capabilities^{}"),
+				CommitId: zeroID,
+			},
+		}
+	}
+	first := true
+	for _, ref := range refs {
+		var s string
+		if first {
+			s = fmt.Sprintf("%s %s\x00%s\n", ref.CommitId, ref.Name, strings.Join(caps, " "))
+			first = false
+		} else {
+			s = fmt.Sprintf("%s %s\n", ref.CommitId, ref.Name)
+		}
+		_, err = pktline.WriteString(&buf, s)
+		require.NoError(t, err)
+	}
+	err = pktline.WriteFlush(&buf)
+	require.NoError(t, err)
+
+	return buf.Bytes()
 }
 
 func TestSuccessfulInfoRefsReceivePack(t *testing.T) {
@@ -293,6 +404,21 @@ func (ms mockStreamer) PutStream(ctx context.Context, repo *gitalypb.Repository,
 }
 
 func TestCacheInfoRefsUploadPack(t *testing.T) {
+	t.Run("raw", func(t *testing.T) {
+		testCacheInfoRefsUploadPack(t, "/gitaly.SmartHTTPService/InfoRefsUploadPack", makeInfoRefsUploadPackRequest)
+	})
+	t.Run("parsed", func(t *testing.T) {
+		testCacheInfoRefsUploadPack(t, "/gitaly.SmartHTTPService/ParsedInfoRefsUploadPack", func(ctx context.Context, t *testing.T, serverSocketPath string, rpcRequest *gitalypb.InfoRefsRequest) ([]byte, error) {
+			caps, refs, err := makeParsedInfoRefsUploadPackRequest(ctx, t, serverSocketPath, requestToParsedRequest(rpcRequest))
+			if err != nil {
+				return nil, err
+			}
+			return unparse(t, caps, refs), nil
+		})
+	})
+}
+
+func testCacheInfoRefsUploadPack(t *testing.T, method string, rawInfoRefsUploadPackRequest func(ctx context.Context, t *testing.T, serverSocketPath string, rpcRequest *gitalypb.InfoRefsRequest) ([]byte, error)) {
 	clearCache(t)
 
 	serverSocketPath, stop := runSmartHTTPServer(t)
@@ -310,7 +436,7 @@ func TestCacheInfoRefsUploadPack(t *testing.T) {
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 
-		response, err := makeInfoRefsUploadPackRequest(ctx, t, serverSocketPath, rpcRequest)
+		response, err := rawInfoRefsUploadPackRequest(ctx, t, serverSocketPath, rpcRequest)
 		require.NoError(t, err)
 
 		assertGitRefAdvertisement(t, "InfoRefsUploadPack", string(response),
@@ -323,18 +449,18 @@ func TestCacheInfoRefsUploadPack(t *testing.T) {
 	}
 
 	assertNormalResponse()
-	require.FileExists(t, pathToCachedResponse(t, ctx, rpcRequest))
+	require.FileExists(t, pathToCachedResponse(t, ctx, rpcRequest, method))
 
 	replacedContents := []string{
-		"first line",
-		"meow meow meow meow",
-		"woof woof woof woof",
-		"last line",
+		"001e# service=git-upload-pack",
+		`00000148` + zeroID + ` HEAD` + "\x00" + `multi_ack thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative no-progress include-tag multi_ack_detailed allow-tip-sha1-in-want allow-reachable-sha1-in-want no-done symref=HEAD:refs/heads/master filter object-format=sha1 agent=git/2.28.0`,
+		`003f` + zeroID + ` refs/heads/master`,
+		"0000",
 	}
 
 	// replace cached response file to prove the info-ref uses the cache
-	replaceCachedResponse(t, ctx, rpcRequest, strings.Join(replacedContents, "\n"))
-	response, err := makeInfoRefsUploadPackRequest(ctx, t, serverSocketPath, rpcRequest)
+	replaceCachedResponse(t, ctx, rpcRequest, method, strings.Join(replacedContents, "\n"))
+	response, err := rawInfoRefsUploadPackRequest(ctx, t, serverSocketPath, rpcRequest)
 	require.NoError(t, err)
 	assertGitRefAdvertisement(t, "InfoRefsUploadPack", string(response),
 		replacedContents[0], replacedContents[3], replacedContents[1:3],
@@ -343,7 +469,7 @@ func TestCacheInfoRefsUploadPack(t *testing.T) {
 	invalidateCacheForRepo := func() {
 		ender, err := cache.LeaseKeyer{}.StartLease(rpcRequest.Repository)
 		require.NoError(t, err)
-		require.NoError(t, ender.EndLease(setInfoRefsUploadPackMethod(ctx)))
+		require.NoError(t, ender.EndLease(setInfoRefsUploadPackMethod(ctx, method)))
 	}
 
 	invalidateCacheForRepo()
@@ -361,9 +487,9 @@ func TestCacheInfoRefsUploadPack(t *testing.T) {
 	invalidRepoCleanup := createInvalidRepo(t, invalidReq.Repository)
 	defer invalidRepoCleanup()
 
-	_, err = makeInfoRefsUploadPackRequest(ctx, t, serverSocketPath, invalidReq)
+	_, err = rawInfoRefsUploadPackRequest(ctx, t, serverSocketPath, invalidReq)
 	testhelper.RequireGrpcError(t, err, codes.Internal)
-	testhelper.AssertPathNotExists(t, pathToCachedResponse(t, ctx, invalidReq))
+	testhelper.AssertPathNotExists(t, pathToCachedResponse(t, ctx, invalidReq, method))
 
 	// if an error occurs while putting stream, it should not interrupt
 	// request from being served
@@ -390,8 +516,8 @@ func createInvalidRepo(t testing.TB, repo *gitalypb.Repository) func() {
 	return func() { require.NoError(t, os.RemoveAll(repoDir)) }
 }
 
-func replaceCachedResponse(t testing.TB, ctx context.Context, req *gitalypb.InfoRefsRequest, newContents string) {
-	path := pathToCachedResponse(t, ctx, req)
+func replaceCachedResponse(t testing.TB, ctx context.Context, req *gitalypb.InfoRefsRequest, method, newContents string) {
+	path := pathToCachedResponse(t, ctx, req, method)
 	require.NoError(t, ioutil.WriteFile(path, []byte(newContents), 0644))
 }
 
@@ -401,12 +527,12 @@ func clearCache(t testing.TB) {
 	}
 }
 
-func setInfoRefsUploadPackMethod(ctx context.Context) context.Context {
-	return testhelper.SetCtxGrpcMethod(ctx, "/gitaly.SmartHTTPService/InfoRefsUploadPack")
+func setInfoRefsUploadPackMethod(ctx context.Context, method string) context.Context {
+	return testhelper.SetCtxGrpcMethod(ctx, method)
 }
 
-func pathToCachedResponse(t testing.TB, ctx context.Context, req *gitalypb.InfoRefsRequest) string {
-	ctx = setInfoRefsUploadPackMethod(ctx)
+func pathToCachedResponse(t testing.TB, ctx context.Context, req *gitalypb.InfoRefsRequest, method string) string {
+	ctx = setInfoRefsUploadPackMethod(ctx, method)
 	path, err := cache.LeaseKeyer{}.KeyPath(ctx, req.GetRepository(), req)
 	require.NoError(t, err)
 	return path

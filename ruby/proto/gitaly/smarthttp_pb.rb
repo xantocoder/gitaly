@@ -15,6 +15,19 @@ Google::Protobuf::DescriptorPool.generated_pool.build do
     add_message "gitaly.InfoRefsResponse" do
       optional :data, :bytes, 1
     end
+    add_message "gitaly.ParsedInfoRefsRequest" do
+      optional :repository, :message, 1, "gitaly.Repository"
+      repeated :git_config_options, :string, 2
+      optional :git_protocol, :string, 3
+    end
+    add_message "gitaly.ParsedInfoRefsResponse" do
+      repeated :capabilities, :string, 1
+      repeated :refs, :message, 2, "gitaly.Ref"
+    end
+    add_message "gitaly.Ref" do
+      optional :name, :bytes, 1
+      optional :commit_id, :string, 2
+    end
     add_message "gitaly.PostUploadPackRequest" do
       optional :repository, :message, 1, "gitaly.Repository"
       optional :data, :bytes, 2
@@ -42,6 +55,9 @@ end
 module Gitaly
   InfoRefsRequest = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.InfoRefsRequest").msgclass
   InfoRefsResponse = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.InfoRefsResponse").msgclass
+  ParsedInfoRefsRequest = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.ParsedInfoRefsRequest").msgclass
+  ParsedInfoRefsResponse = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.ParsedInfoRefsResponse").msgclass
+  Ref = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.Ref").msgclass
   PostUploadPackRequest = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.PostUploadPackRequest").msgclass
   PostUploadPackResponse = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.PostUploadPackResponse").msgclass
   PostReceivePackRequest = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.PostReceivePackRequest").msgclass

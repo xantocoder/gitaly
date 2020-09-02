@@ -18,6 +18,8 @@ module Gitaly
       # Will be invoked when the user executes a `git fetch`, meaning the server
       # will upload the packs to that user. The user doesn't upload new objects.
       rpc :InfoRefsUploadPack, Gitaly::InfoRefsRequest, stream(Gitaly::InfoRefsResponse)
+      # Just the like InfoRefsUploadPack but returns a parsed response.
+      rpc :ParsedInfoRefsUploadPack, Gitaly::ParsedInfoRefsRequest, stream(Gitaly::ParsedInfoRefsResponse)
       # The response body for GET /info/refs?service=git-receive-pack
       # Will be invoked when the user executes a `git push`, but only advertises
       # references to the user.

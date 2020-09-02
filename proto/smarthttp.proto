@@ -17,6 +17,13 @@ service SmartHTTPService {
     };
   }
 
+  // Just the like InfoRefsUploadPack but returns a parsed response.
+  rpc ParsedInfoRefsUploadPack(ParsedInfoRefsRequest) returns (stream ParsedInfoRefsResponse) {
+    option (op_type) = {
+      op: ACCESSOR
+    };
+  }
+
   // The response body for GET /info/refs?service=git-receive-pack
   // Will be invoked when the user executes a `git push`, but only advertises
   // references to the user.
@@ -52,6 +59,26 @@ message InfoRefsRequest {
 
 message InfoRefsResponse {
   bytes data = 1;
+}
+
+message ParsedInfoRefsRequest {
+  Repository repository = 1 [(target_repository)=true];
+  // Parameters to use with git -c (key=value pairs)
+  repeated string git_config_options = 2;
+
+  // Git protocol version
+  string git_protocol = 3;
+}
+
+message ParsedInfoRefsResponse {
+  // capabilities is only sent in the first response message.
+  repeated string capabilities = 1;
+  repeated Ref refs = 2;
+}
+
+message Ref {
+  bytes name = 1;
+  string commit_id = 2;
 }
 
 message PostUploadPackRequest {

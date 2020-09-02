@@ -158,7 +158,7 @@ A typical example of an "Item" would be a commit. To avoid the penalty
 of network IO for each Item we return, we batch them together. You can
 think of this as a kind of buffered IO at the level of the Item
 messages. In Go, to ease the bookkeeping you can use
-[gitlab.com/gitlab-org/gitaly/internal/helper/chunker](https://godoc.org/gitlab.com/gitlab-org/gitaly/internal/helper/chunker).
+[gitlab.com/gitlab-org/gitaly/internal/helper/chunk](https://godoc.org/gitlab.com/gitlab-org/gitaly/internal/helper/chunk).
 
 #### Single large item split over multiple messages
 
@@ -248,14 +248,14 @@ being modified by the operation. This is needed by Praefect (Gitaly Cluster) in
 order to properly schedule replications to keep repository replicas up to date.
 
 The target repository annotation marks where the target repository can be
-found in the message. The annotation is added near `gitaly.Repository` field 
+found in the message. The annotation is added near `gitaly.Repository` field
 (e.g. `Repository repository = 1 [(target_repository)=true];`). If annotated field isn't
 `gitaly.Repository` type then it has to contain field annotated `[(repository)=true]` with
-correct type. Having separate `repository` annotation allows to have same field in child 
+correct type. Having separate `repository` annotation allows to have same field in child
 message annotated as both `target_repository` and `additional_repository` depending on parent
 message.
 
-The additional repository is annotated similarly to target repository but annotation 
+The additional repository is annotated similarly to target repository but annotation
 is named `additional_repository`
 
 See our examples of [valid](go/internal/linter/testdata/valid.proto) and
@@ -292,7 +292,7 @@ and Ruby libraries before committing your change.
 
 ```
 # Re-generate Go and Ruby libraries
-make generate
+make proto
 ```
 
 ## How to deprecate an RPC call
