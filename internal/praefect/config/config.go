@@ -96,9 +96,10 @@ type Config struct {
 	DB                   `toml:"database"`
 	Failover             Failover `toml:"failover"`
 	// Keep for legacy reasons: remove after Omnibus has switched
-	FailoverEnabled     bool            `toml:"failover_enabled"`
-	MemoryQueueEnabled  bool            `toml:"memory_queue_enabled"`
-	GracefulStopTimeout config.Duration `toml:"graceful_stop_timeout"`
+	FailoverEnabled                 bool            `toml:"failover_enabled"`
+	MemoryQueueEnabled              bool            `toml:"memory_queue_enabled"`
+	GracefulStopTimeout             config.Duration `toml:"graceful_stop_timeout"`
+	DistributedReadsCacheExpiration config.Duration `toml:"distributed_reads_cache_expiration"`
 }
 
 // VirtualStorage represents a set of nodes for a storage
@@ -113,7 +114,8 @@ func FromFile(filePath string) (Config, error) {
 		Reconciliation: DefaultReconciliationConfig(),
 		Replication:    DefaultReplicationConfig(),
 		// Sets the default Failover, to be overwritten when deserializing the TOML
-		Failover: Failover{Enabled: true, ElectionStrategy: sqlFailoverValue},
+		Failover:                        Failover{Enabled: true, ElectionStrategy: sqlFailoverValue},
+		DistributedReadsCacheExpiration: config.Duration(time.Second),
 	}
 	if _, err := toml.DecodeFile(filePath, conf); err != nil {
 		return Config{}, err

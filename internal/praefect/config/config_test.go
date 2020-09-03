@@ -288,6 +288,7 @@ func TestConfigParsing(t *testing.T) {
 					BootstrapInterval:        config.Duration(1 * time.Second),
 					MonitorInterval:          config.Duration(3 * time.Second),
 				},
+				DistributedReadsCacheExpiration: config.Duration(time.Hour),
 			},
 		},
 		{
@@ -306,6 +307,7 @@ func TestConfigParsing(t *testing.T) {
 					BootstrapInterval: config.Duration(5 * time.Second),
 					MonitorInterval:   config.Duration(10 * time.Second),
 				},
+				DistributedReadsCacheExpiration: config.Duration(time.Minute),
 			},
 		},
 		{
@@ -321,6 +323,7 @@ func TestConfigParsing(t *testing.T) {
 					BootstrapInterval: config.Duration(time.Second),
 					MonitorInterval:   config.Duration(3 * time.Second),
 				},
+				DistributedReadsCacheExpiration: config.Duration(time.Second),
 			},
 		},
 		{

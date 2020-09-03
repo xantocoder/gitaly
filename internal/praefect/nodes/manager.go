@@ -99,6 +99,13 @@ type Mgr struct {
 	strategies map[string]leaderElectionStrategy
 	db         *sql.DB
 	rs         datastore.RepositoryStore
+	StorageProvider
+}
+
+// StorageProvider abstracts the way we get storages (gitaly nodes).
+type StorageProvider interface {
+	// GetSyncedNodes returns list of gitaly storages that are in up to date state based on the generation tracking.
+	GetSyncedNodes(ctx context.Context, logger logrus.FieldLogger, virtualStorageName, repoPath, primaryStorage string) []string
 }
 
 // leaderElectionStrategy defines the interface by which primary and
@@ -177,9 +184,10 @@ func NewManager(
 	}
 
 	return &Mgr{
-		db:         db,
-		strategies: strategies,
-		rs:         rs,
+		db:              db,
+		strategies:      strategies,
+		rs:              rs,
+		StorageProvider: newUpToDateStoragesCache(rs, c.DistributedReadsCacheExpiration.Duration(), c.VirtualStorageNames()),
 	}, nil
 }
 
@@ -244,21 +252,11 @@ func (n *Mgr) GetSyncedNode(ctx context.Context, virtualStorageName, repoPath st
 	}
 
 	logger := ctxlogrus.Extract(ctx).WithFields(logrus.Fields{"virtual_storage_name": virtualStorageName, "repo_path": repoPath})
-	upToDateStorages, err := n.rs.GetConsistentSecondaries(ctx, virtualStorageName, repoPath, shard.Primary.GetStorage())
-	if err != nil {
-		// this is recoverable error - proceed with primary node
-		logger.WithError(err).Warn("get up to date secondaries")
-	}
 
-	if len(upToDateStorages) == 0 {
-		upToDateStorages = make(map[string]struct{}, 1)
-	}
-
-	// Primary should be considered as all other storages for serving read operations
-	upToDateStorages[shard.Primary.GetStorage()] = struct{}{}
+	upToDateStorages := n.StorageProvider.GetSyncedNodes(ctx, logger, virtualStorageName, repoPath, shard.Primary.GetStorage())
 	healthyStorages := make([]Node, 0, len(upToDateStorages))
 
-	for upToDateStorage := range upToDateStorages {
+	for _, upToDateStorage := range upToDateStorages {
 		node, err := shard.GetNode(upToDateStorage)
 		if err != nil {
 			// this is recoverable error - proceed with with other nodes

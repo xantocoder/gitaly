@@ -1,0 +1,5 @@
+---
+title: Introduction of short-lived in-memory cache for reads distribution
+merge_request: 2518
+author:
+type: performance

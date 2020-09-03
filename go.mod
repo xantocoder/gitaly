@@ -13,6 +13,7 @@ require (
 	github.com/lib/pq v1.2.0
 	github.com/libgit2/git2go/v30 v30.0.5
 	github.com/olekukonko/tablewriter v0.0.2
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prometheus/client_golang v1.0.0
 	github.com/prometheus/procfs v0.0.3 // indirect
 	github.com/rubenv/sql-migrate v0.0.0-20191213152630-06338513c237

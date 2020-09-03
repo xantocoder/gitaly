@@ -1,3 +1,5 @@
+distributed_reads_cache_expiration = "1m"
+
 [replication]
 batch_size = 1
 

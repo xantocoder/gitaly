@@ -19,6 +19,11 @@ bin_dir = "/home/git/gitaly"
 # # Non Gitaly clients should never connect to these sockets.
 # internal_socket_dir = "/home/git/gitlab/tmp/sockets/private/internal"
 
+# # Optional: configure expiration time for the cache to re-use up to date storages defined for the repository.
+# # Bigger value could improve throughput and reduce load at database where the state is populated from.
+# # But it could lead to redirecting read operations to storages that are outdated.
+# distributed_reads_cache_expiration = "1s"
+
 # # Optional: authenticate Gitaly requests using a shared secret
 # [auth]
 # token = 'abc123secret'
