@@ -787,7 +787,7 @@ func TestProxyWrites(t *testing.T) {
 	queue := datastore.NewMemoryReplicationEventQueue(conf)
 	entry := testhelper.DiscardTestEntry(t)
 
-	nodeMgr, err := nodes.NewManager(entry, conf, nil, nil, promtest.NewMockHistogramVec(), protoregistry.GitalyProtoPreregistered, nil)
+	nodeMgr, err := nodes.NewManager(entry, conf, nil, nil, promtest.NewMockHistogramVec(), protoregistry.GitalyProtoPreregistered, nil, nil)
 	require.NoError(t, err)
 	nodeMgr.Start(0, time.Hour)
 
@@ -969,7 +969,7 @@ func TestErrorThreshold(t *testing.T) {
 
 			rs := datastore.NewMemoryRepositoryStore(conf.StorageNames())
 
-			nodeMgr, err := nodes.NewManager(entry, conf, nil, rs, promtest.NewMockHistogramVec(), registry, errorTracker)
+			nodeMgr, err := nodes.NewManager(entry, conf, nil, rs, promtest.NewMockHistogramVec(), registry, errorTracker, nil)
 			require.NoError(t, err)
 
 			coordinator := NewCoordinator(queue, rs, nodeMgr, nil, conf, registry)

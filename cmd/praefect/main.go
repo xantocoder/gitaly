@@ -257,7 +257,7 @@ func run(cfgs []starter.Config, conf config.Config) error {
 		}
 	}
 
-	nodeManager, err := nodes.NewManager(logger, conf, db, rs, nodeLatencyHistogram, protoregistry.GitalyProtoPreregistered, errTracker)
+	nodeManager, err := nodes.NewManager(logger, conf, db, rs, nodeLatencyHistogram, protoregistry.GitalyProtoPreregistered, errTracker, prometheus.DefaultRegisterer)
 	if err != nil {
 		return err
 	}

@@ -12,6 +12,7 @@ import (
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	gitalyauth "gitlab.com/gitlab-org/gitaly/auth"
 	"gitlab.com/gitlab-org/gitaly/client"
@@ -131,7 +132,9 @@ func NewManager(
 	latencyHistogram prommetrics.HistogramVec,
 	registry *protoregistry.Registry,
 	errorTracker tracker.ErrorTracker,
-	dialOpts ...grpc.DialOption) (*Mgr, error) {
+	promRegistry prometheus.Registerer,
+	dialOpts ...grpc.DialOption,
+) (*Mgr, error) {
 	strategies := make(map[string]leaderElectionStrategy, len(c.VirtualStorages))
 
 	ctx, cancel := context.WithTimeout(context.Background(), dialTimeout)
@@ -183,11 +186,16 @@ func NewManager(
 		}
 	}
 
+	cache := newUpToDateStoragesCache(rs, c.DistributedReadsCacheExpiration.Duration(), c.VirtualStorageNames())
+	if promRegistry != nil {
+		promRegistry.MustRegister(cache)
+	}
+
 	return &Mgr{
 		db:              db,
 		strategies:      strategies,
 		rs:              rs,
-		StorageProvider: newUpToDateStoragesCache(rs, c.DistributedReadsCacheExpiration.Duration(), c.VirtualStorageNames()),
+		StorageProvider: cache,
 	}, nil
 }
 
