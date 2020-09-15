@@ -26,9 +26,9 @@ func (ml methodLinter) validateAccessor() error {
 		return ml.ensureValidRepoScope()
 	case gitalypb.OperationMsg_STORAGE:
 		return ml.ensureValidStorageScope()
+	default:
+		return nil
 	}
-
-	return nil
 }
 
 // validateMutator will ensure the following rules:
@@ -36,19 +36,12 @@ func (ml methodLinter) validateAccessor() error {
 //  - Mutator RPC's without target repo must not be scoped at repo level
 func (ml methodLinter) validateMutator() error {
 	switch scope := ml.opMsg.GetScopeLevel(); scope {
-
 	case gitalypb.OperationMsg_REPOSITORY:
 		return ml.ensureValidRepoScope()
-
-	case gitalypb.OperationMsg_SERVER:
-		return ml.ensureValidServerScope()
-
 	case gitalypb.OperationMsg_STORAGE:
 		return ml.ensureValidStorageScope()
-
 	default:
 		return fmt.Errorf("unknown operation scope level %d", scope)
-
 	}
 }
 
@@ -58,13 +51,6 @@ func (ml methodLinter) ensureValidStorageScope() error {
 	}
 
 	return ml.ensureValidStorage(1)
-}
-
-func (ml methodLinter) ensureValidServerScope() error {
-	if err := ml.ensureValidTargetRepository(0); err != nil {
-		return err
-	}
-	return ml.ensureValidStorage(0)
 }
 
 func (ml methodLinter) ensureValidRepoScope() error {

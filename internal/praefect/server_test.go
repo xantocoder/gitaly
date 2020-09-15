@@ -901,7 +901,7 @@ func TestErrorThreshold(t *testing.T) {
 		},
 	}
 
-	gz := proto.FileDescriptor("mock.proto")
+	gz := proto.FileDescriptor("praefect/mock/mock.proto")
 	fd, err := protoregistry.ExtractFileDescriptor(gz)
 	require.NoError(t, err)
 

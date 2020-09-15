@@ -61,10 +61,7 @@ func TestAuthFailures(t *testing.T) {
 
 			cli := mock.NewSimpleServiceClient(conn)
 
-			_, err = cli.ServerAccessor(ctx, &mock.SimpleRequest{
-				Value: 1,
-			})
-
+			_, err = cli.RepoAccessorUnary(ctx, &mock.RepoRequest{})
 			testhelper.RequireGrpcError(t, err, tc.code)
 		})
 	}
@@ -159,7 +156,7 @@ func runServer(t *testing.T, token string, required bool) (*grpc.Server, string,
 		},
 	}
 
-	gz := proto.FileDescriptor("mock.proto")
+	gz := proto.FileDescriptor("praefect/mock/mock.proto")
 	fd, err := protoregistry.ExtractFileDescriptor(gz)
 	if err != nil {
 		t.Fatal(err)
