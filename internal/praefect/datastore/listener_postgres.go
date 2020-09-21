@@ -227,9 +227,7 @@ func (pgl *PostgresListener) close(lock bool, err error) {
 
 	close(pgl.closed)
 	pgl.closed = make(chan struct{})
-
 	pgl.listener = nil
-	return
 }
 
 func (pgl *PostgresListener) Describe(descs chan<- *promclient.Desc) {
