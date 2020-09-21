@@ -22,4 +22,12 @@ func TestThreshold(t *testing.T) {
 		time.Sleep(time.Millisecond)
 		require.False(t, thresholdReached())
 	})
+
+	t.Run("always reached for zero values", func(t *testing.T) {
+		thresholdReached := Threshold(0, 0)
+
+		require.True(t, thresholdReached())
+		time.Sleep(time.Millisecond)
+		require.True(t, thresholdReached())
+	})
 }

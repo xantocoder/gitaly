@@ -41,12 +41,21 @@ type Querier interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 }
 
+// ListenHandler contains a set of methods that would be called on corresponding notifications received.
+type ListenHandler interface {
+	// Notification would be triggered once a new notification received.
+	Notification(payload string)
+	// Disconnect would be triggered once a connection to remote service is lost.
+	Disconnect()
+}
+
 // Listener listens for events that occur in the system.
 type Listener interface {
-	// Listen is a blocking call that triggers a passed in callback function for the events that appear in the system.
-	// The callback will be executed in a separate goroutine, so there is no awaiting between processing of the
-	// previously raised event and a new event by the callback.
-	Listen(ctx context.Context, callback func(data string)) error
+	// Listen is a blocking call that triggers a passed in handler for the events that appear in the system.
+	// The `Notification` method will be executed in a separate goroutine, so there is no awaiting between
+	// processing of the previously raised event and a new event.
+	// `Disconnect` method will be called by events dispatching goroutine, so it should be quick.
+	Listen(ctx context.Context, handler ListenHandler) error
 }
 
 // TxQuery runs operations inside transaction and commits|rollbacks on Done.

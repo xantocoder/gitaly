@@ -68,6 +68,23 @@ func TestNewPostgresListener(t *testing.T) {
 	}
 }
 
+type mockListenHandler struct {
+	OnNotification func(string)
+	OnDisconnect   func()
+}
+
+func (mlh mockListenHandler) Notification(v string) {
+	if mlh.OnNotification != nil {
+		mlh.OnNotification(v)
+	}
+}
+
+func (mlh mockListenHandler) Disconnect() {
+	if mlh.OnDisconnect != nil {
+		mlh.OnDisconnect()
+	}
+}
+
 func TestPostgresListener_Listen(t *testing.T) {
 	db := getDB(t)
 
@@ -135,7 +152,7 @@ func TestPostgresListener_Listen(t *testing.T) {
 			}
 		}
 
-		require.NoError(t, pgl.Listen(ctx, callback))
+		require.NoError(t, pgl.Listen(ctx, mockListenHandler{OnNotification: callback}))
 
 		return pgl, result
 	}
@@ -231,10 +248,10 @@ func TestPostgresListener_Listen(t *testing.T) {
 
 		errCh := make(chan error, 1)
 		go func() {
-			errCh <- listener.Listen(ctx, func(payload string) {
+			errCh <- listener.Listen(ctx, mockListenHandler{OnNotification: func(payload string) {
 				atomic.StoreInt32(&connected, 1)
 				assert.Equal(t, "2", payload)
-			})
+			}})
 		}()
 
 		for atomic.LoadInt32(&connected) == 0 {
@@ -259,17 +276,17 @@ func TestPostgresListener_Listen(t *testing.T) {
 
 		errCh := make(chan error, 1)
 		go func() {
-			errCh <- listener.Listen(ctx, func(payload string) {
+			errCh <- listener.Listen(ctx, mockListenHandler{OnNotification: func(payload string) {
 				atomic.StoreInt32(&connected, 1)
 				assert.Equal(t, "2", payload)
-			})
+			}})
 		}()
 
 		for atomic.LoadInt32(&connected) == 0 {
 			notifyListener(t, opts.Channel, "2")
 		}
 
-		err = listener.Listen(ctx, func(payload string) {})
+		err = listener.Listen(ctx, mockListenHandler{})
 		require.Error(t, err)
 		require.Equal(t, fmt.Sprintf(`already listening channel %q of %q`, opts.Channel, opts.Addr), err.Error())
 	})
@@ -284,9 +301,9 @@ func TestPostgresListener_Listen(t *testing.T) {
 		ctx, cancel := testhelper.Context()
 		defer cancel()
 
-		err = listener.Listen(ctx, func(string) {
+		err = listener.Listen(ctx, mockListenHandler{OnNotification: func(string) {
 			assert.FailNow(t, "no notifications expected to be received")
-		})
+		}})
 		require.Error(t, err, "it should not be possible to start listening on invalid connection")
 	})
 
@@ -302,9 +319,9 @@ func TestPostgresListener_Listen(t *testing.T) {
 
 		errChan := make(chan error, 1)
 		go func() {
-			errChan <- listener.Listen(ctx, func(string) {
+			errChan <- listener.Listen(ctx, mockListenHandler{OnNotification: func(string) {
 				atomic.StoreInt32(&connected, 1)
-			})
+			}})
 		}()
 
 		for atomic.LoadInt32(&connected) == 0 {
@@ -331,15 +348,19 @@ func TestPostgresListener_Listen(t *testing.T) {
 		defer cancel()
 
 		var connected int32
+		var disconnected int32
 
 		errChan := make(chan error, 1)
 		go func() {
-			errChan <- listener.Listen(ctx, func(string) {
-				atomic.StoreInt32(&connected, 1)
-			})
+			errChan <- listener.Listen(
+				ctx,
+				mockListenHandler{
+					OnNotification: func(string) { atomic.StoreInt32(&connected, 1) },
+					OnDisconnect:   func() { atomic.AddInt32(&disconnected, 1) },
+				})
 		}()
 
-		for i := 0; i < 3; i++ {
+		for i := 0; i < opts.DisconnectThreshold; i++ {
 			for atomic.LoadInt32(&connected) == 0 {
 				notifyListener(t, opts.Channel, "")
 			}
@@ -348,7 +369,7 @@ func TestPostgresListener_Listen(t *testing.T) {
 			atomic.StoreInt32(&connected, 0)
 		}
 
-		require.Error(t, <-errChan, "it should not be possible to start listening on invalid connection")
+		require.Error(t, <-errChan)
 
 		metrics := readMetrics(t, listener.reconnectTotal)
 		for _, metric := range metrics {
@@ -356,7 +377,7 @@ func TestPostgresListener_Listen(t *testing.T) {
 			case "connected":
 				require.GreaterOrEqual(t, *metric.Counter.Value, 1.0)
 			case "disconnected":
-				require.GreaterOrEqual(t, *metric.Counter.Value, 3.0)
+				require.EqualValues(t, disconnected, *metric.Counter.Value)
 			case "reconnected":
 				require.GreaterOrEqual(t, *metric.Counter.Value, 2.0)
 			}

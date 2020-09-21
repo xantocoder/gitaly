@@ -11,25 +11,34 @@ import (
 	"github.com/lib/pq"
 	promclient "github.com/prometheus/client_golang/prometheus"
 	"gitlab.com/gitlab-org/gitaly/internal/dontpanic"
+	"gitlab.com/gitlab-org/gitaly/internal/praefect/datastore/glsql"
 	"gitlab.com/gitlab-org/gitaly/internal/safe"
 )
 
 // PostgresListenerOpts is a set of configuration options for the PostgreSQL listener.
 type PostgresListenerOpts struct {
-	Addr                 string
-	Channel              string
-	ProcessingPoolSize   int
-	PingPeriod           time.Duration
-	MinReconnectInterval time.Duration
-	MaxReconnectInterval time.Duration
+	Addr                     string
+	Channel                  string
+	ProcessingPoolSize       int
+	PingPeriod               time.Duration
+	MinReconnectInterval     time.Duration
+	MaxReconnectInterval     time.Duration
+	DisconnectThreshold      int
+	DisconnectTimeWindow     time.Duration
+	ConnectAttemptThreshold  int
+	ConnectAttemptTimeWindow time.Duration
 }
 
 // DefaultPostgresListenerOpts pre-defined options for PostgreSQL listener.
 var DefaultPostgresListenerOpts = PostgresListenerOpts{
-	ProcessingPoolSize:   16,
-	PingPeriod:           10 * time.Second,
-	MinReconnectInterval: 5 * time.Second,
-	MaxReconnectInterval: 40 * time.Second,
+	ProcessingPoolSize:       16,
+	PingPeriod:               10 * time.Second,
+	MinReconnectInterval:     5 * time.Second,
+	MaxReconnectInterval:     40 * time.Second,
+	DisconnectThreshold:      3,
+	DisconnectTimeWindow:     time.Minute,
+	ConnectAttemptThreshold:  3,
+	ConnectAttemptTimeWindow: time.Minute,
 }
 
 // PostgresListener is an implementation based on the PostgreSQL LISTEN/NOTIFY functions.
@@ -80,13 +89,13 @@ func NewPostgresListener(opts PostgresListenerOpts) (*PostgresListener, error) {
 	}, nil
 }
 
-func (pgl *PostgresListener) Listen(ctx context.Context, callback func(string)) error {
-	if err := pgl.initListener(); err != nil {
+func (pgl *PostgresListener) Listen(ctx context.Context, handler glsql.ListenHandler) error {
+	if err := pgl.initListener(handler); err != nil {
 		return err
 	}
 
-	notificationsChan := pgl.catchNotifications(ctx, callback)
-	pgl.spreadAmongProcessors(notificationsChan, callback)
+	notificationsChan := pgl.catchNotifications(ctx, handler)
+	pgl.spreadAmongProcessors(notificationsChan, handler)
 
 	pgl.wg.Wait()
 
@@ -110,7 +119,7 @@ func listenerEventTypeToString(et pq.ListenerEventType) string {
 	return fmt.Sprintf("unknown: %d", et)
 }
 
-func (pgl *PostgresListener) initListener() error {
+func (pgl *PostgresListener) initListener(handler glsql.ListenHandler) error {
 	pgl.mtx.Lock()
 	defer pgl.mtx.Unlock()
 
@@ -119,7 +128,8 @@ func (pgl *PostgresListener) initListener() error {
 	}
 	pgl.err = nil
 
-	thresholdReached := safe.Threshold(3, time.Minute)
+	disconnectThresholdReached := safe.Threshold(pgl.opts.DisconnectThreshold, pgl.opts.DisconnectTimeWindow)
+	connectAttemptThresholdReached := safe.Threshold(pgl.opts.ConnectAttemptThreshold, pgl.opts.ConnectAttemptTimeWindow)
 
 	initialization := int32(1)
 	defer atomic.StoreInt32(&initialization, 0)
@@ -128,8 +138,13 @@ func (pgl *PostgresListener) initListener() error {
 		pgl.reconnectTotal.WithLabelValues(listenerEventTypeToString(eventType)).Inc()
 
 		switch eventType {
-		case pq.ListenerEventDisconnected, pq.ListenerEventConnectionAttemptFailed:
-			if thresholdReached() {
+		case pq.ListenerEventDisconnected:
+			dontpanic.Try(handler.Disconnect)
+			if disconnectThresholdReached() {
+				pgl.close(atomic.LoadInt32(&initialization) == 0, err)
+			}
+		case pq.ListenerEventConnectionAttemptFailed:
+			if connectAttemptThresholdReached() {
 				pgl.close(atomic.LoadInt32(&initialization) == 0, err)
 			}
 		}
@@ -144,7 +159,7 @@ func (pgl *PostgresListener) initListener() error {
 	return pgl.err
 }
 
-func (pgl *PostgresListener) catchNotifications(ctx context.Context, callback func(string)) <-chan string {
+func (pgl *PostgresListener) catchNotifications(ctx context.Context, handler glsql.ListenHandler) <-chan string {
 	notificationsChan := make(chan string)
 
 	closed := pgl.closed
@@ -178,7 +193,7 @@ func (pgl *PostgresListener) catchNotifications(ctx context.Context, callback fu
 					go func() {
 						pgl.extraProcessingGoroutinesTotal.Inc()
 						defer pgl.wg.Done()
-						dontpanic.Try(func() { callback(notification.Extra) })
+						dontpanic.Try(func() { handler.Notification(notification.Extra) })
 					}()
 				}
 			}
@@ -188,14 +203,14 @@ func (pgl *PostgresListener) catchNotifications(ctx context.Context, callback fu
 	return notificationsChan
 }
 
-func (pgl *PostgresListener) spreadAmongProcessors(notificationsChan <-chan string, callback func(string)) {
+func (pgl *PostgresListener) spreadAmongProcessors(notificationsChan <-chan string, handler glsql.ListenHandler) {
 	pgl.wg.Add(pgl.opts.ProcessingPoolSize)
 	for i := 0; i < pgl.opts.ProcessingPoolSize; i++ {
 		go func() {
 			defer pgl.wg.Done()
 
 			for notification := range notificationsChan {
-				dontpanic.Try(func() { callback(notification) })
+				dontpanic.Try(func() { handler.Notification(notification) })
 			}
 		}()
 	}
