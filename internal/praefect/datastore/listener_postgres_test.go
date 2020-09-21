@@ -351,10 +351,15 @@ func TestPostgresListener_Listen(t *testing.T) {
 		require.Error(t, <-errChan, "it should not be possible to start listening on invalid connection")
 
 		metrics := readMetrics(t, listener.reconnectTotal)
-		actual := map[string]float64{}
 		for _, metric := range metrics {
-			actual[*metric.Label[0].Value] = *metric.Counter.Value
+			switch *metric.Label[0].Value {
+			case "connected":
+				require.GreaterOrEqual(t, *metric.Counter.Value, 1.0)
+			case "disconnected":
+				require.GreaterOrEqual(t, *metric.Counter.Value, 3.0)
+			case "reconnected":
+				require.GreaterOrEqual(t, *metric.Counter.Value, 2.0)
+			}
 		}
-		require.Equal(t, map[string]float64{"connected": 1, "disconnected": 3, "reconnected": 2}, actual)
 	})
 }
