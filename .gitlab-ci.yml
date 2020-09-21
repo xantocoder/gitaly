@@ -73,7 +73,7 @@ danger-review:
     PGUSER: postgres
     POSTGRES_HOST_AUTH_METHOD: trust
     PGHOST_PGBOUNCER: 0.0.0.0
-    PGPORT_PGBOUNCER: 5432
+    PGPORT_PGBOUNCER: 6432
   before_script:
     - go version
     - git version
