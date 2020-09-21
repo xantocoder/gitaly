@@ -73,7 +73,7 @@ func TestPostgresListener_Listen(t *testing.T) {
 
 	newOpts := func() PostgresListenerOpts {
 		opts := DefaultPostgresListenerOpts
-		opts.Addr = getDBConfig(t).ToPQString()
+		opts.Addr = getDBConfig(t).ToPQString(false)
 		opts.Channel = fmt.Sprintf("channel_%d", time.Now().UnixNano())
 		opts.MinReconnectInterval = time.Nanosecond
 		opts.MaxReconnectInterval = time.Second

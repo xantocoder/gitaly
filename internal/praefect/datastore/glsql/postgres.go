@@ -15,7 +15,7 @@ import (
 
 // OpenDB returns connection pool to the database.
 func OpenDB(conf config.DB) (*sql.DB, error) {
-	db, err := sql.Open("postgres", conf.ToPQString())
+	db, err := sql.Open("postgres", conf.ToPQString(true))
 	if err != nil {
 		return nil, err
 	}
@@ -39,6 +39,14 @@ type Querier interface {
 	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+}
+
+// Listener listens for events that occur in the system.
+type Listener interface {
+	// Listen is a blocking call that triggers a passed in callback function for the events that appear in the system.
+	// The callback will be executed in a separate goroutine, so there is no awaiting between processing of the
+	// previously raised event and a new event by the callback.
+	Listen(ctx context.Context, callback func(data string)) error
 }
 
 // TxQuery runs operations inside transaction and commits|rollbacks on Done.

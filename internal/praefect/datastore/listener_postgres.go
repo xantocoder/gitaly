@@ -1,5 +1,3 @@
-// +build postgres
-
 package datastore
 
 import (
@@ -15,14 +13,6 @@ import (
 	"gitlab.com/gitlab-org/gitaly/internal/dontpanic"
 	"gitlab.com/gitlab-org/gitaly/internal/safe"
 )
-
-// Listener listens for events that occur in the system.
-type Listener interface {
-	// Listen is a blocking call that triggers a passed in callback function for the events that appear in the system.
-	// The callback will be executed in a separate goroutine, so there is no awaiting between processing of the
-	// previously raised event and a new event by the callback.
-	Listen(ctx context.Context, callback func(data string)) error
-}
 
 // PostgresListenerOpts is a set of configuration options for the PostgreSQL listener.
 type PostgresListenerOpts struct {
