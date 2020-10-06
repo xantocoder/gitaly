@@ -33,5 +33,5 @@ func (s *server) UserCherryPick(ctx context.Context, req *gitalypb.UserCherryPic
 }
 
 func (s *server) userCherryPick(ctx context.Context, req *gitalypb.UserCherryPickRequest) (*gitalypb.UserCherryPickResponse, error) {
-
+	
 }

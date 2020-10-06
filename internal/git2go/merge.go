@@ -10,11 +10,6 @@ import (
 	"gitlab.com/gitlab-org/gitaly/internal/gitaly/config"
 )
 
-var (
-	// ErrInvalidArgument is returned in case the merge arguments are invalid.
-	ErrInvalidArgument = errors.New("invalid parameters")
-)
-
 // MergeCommand contains parameters to perform a merge.
 type MergeCommand struct {
 	// Repository is the path to execute merge in.
@@ -49,7 +44,6 @@ func MergeCommandFromSerialized(serialized string) (MergeCommand, error) {
 	if err := request.verify(); err != nil {
 		return MergeCommand{}, fmt.Errorf("merge: %w: %s", ErrInvalidArgument, err.Error())
 	}
-
 	return request, nil
 }
 
