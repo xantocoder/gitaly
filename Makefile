@@ -50,7 +50,7 @@ BUNDLE_FLAGS    ?= $(shell test -f ${SOURCE_DIR}/../.gdk-install-root && echo --
 GITALY_PACKAGE  := gitlab.com/gitlab-org/gitaly
 BUILD_TIME      := $(shell date +"%Y%m%d.%H%M%S")
 GITALY_VERSION  := $(shell git describe --match v* 2>/dev/null | sed 's/^v//' || cat ${SOURCE_DIR}/VERSION 2>/dev/null || echo unknown)
-GO_LDFLAGS      := -ldflags '-X ${GITALY_PACKAGE}/internal/version.version=${GITALY_VERSION} -X ${GITALY_PACKAGE}/internal/version.buildtime=${BUILD_TIME}'
+GO_LDFLAGS      := -ldflags '-X ${GITALY_PACKAGE}/internal/version.version=${GITALY_VERSION} -X ${GITALY_PACKAGE}/internal/version.buildtime=${BUILD_TIME} -extldflags "-static"'
 GO_TEST_LDFLAGS := -X gitlab.com/gitlab-org/gitaly/auth.timestampThreshold=5s
 GO_BUILD_TAGS   := tracer_static,tracer_static_jaeger,continuous_profiler_stackdriver,static,system_libgit2
 
@@ -404,7 +404,7 @@ ${LIBGIT2_INSTALL_DIR}/lib/libgit2.a: ${BUILD_DIR}/Makefile.sha256
 	${Q}mkdir -p ${LIBGIT2_BUILD_DIR}
 	${Q}cd ${LIBGIT2_BUILD_DIR} && cmake ${LIBGIT2_SOURCE_DIR} ${LIBGIT2_BUILD_OPTIONS}
 	${Q}CMAKE_BUILD_PARALLEL_LEVEL=$(shell nproc) cmake --build ${LIBGIT2_BUILD_DIR} --target install
-	go install -a github.com/libgit2/git2go/${GIT2GO_VERSION}
+	go install ${GO_LDFLAGS} -tags "${GO_BUILD_TAGS}" -a github.com/libgit2/git2go/${GIT2GO_VERSION}
 
 ${GOIMPORTS}: ${BUILD_DIR}/Makefile.sha256 ${BUILD_DIR}/go.mod
 	${Q}cd ${BUILD_DIR} && go get golang.org/x/tools/cmd/goimports@2538eef75904eff384a2551359968e40c207d9d2
