@@ -16,6 +16,7 @@ type subcmd interface {
 }
 
 var subcommands = map[string]subcmd{
+	"apply":     &applySubcommand{},
 	"conflicts": &conflictsSubcommand{},
 	"commit":    commitSubcommand{},
 	"merge":     &mergeSubcommand{},
