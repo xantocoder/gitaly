@@ -108,14 +108,22 @@ func TestPostgresListener_Listen(t *testing.T) {
 
 		require.NoError(t, err)
 
+		var wg sync.WaitGroup
 		ctx, cancel := testhelper.Context()
-		defer cancel()
+		defer func() {
+			cancel()
+			wg.Wait()
+		}()
 
 		numResults := len(payloads) * numNotifiers
 		allReceivedChan := make(chan struct{})
 
+		wg.Add(1)
 		go func() {
-			defer cancel()
+			defer func() {
+				cancel()
+				wg.Done()
+			}()
 
 			time.Sleep(100 * time.Millisecond)
 
@@ -244,14 +252,20 @@ func TestPostgresListener_Listen(t *testing.T) {
 		listener, err := NewPostgresListener(opts)
 		require.NoError(t, err)
 
+		var wg sync.WaitGroup
+
 		ctx, cancel := testhelper.Context()
-		defer cancel()
+		defer func() {
+			cancel()
+			wg.Wait()
+		}()
 
 		var connected int32
 
-		errCh := make(chan error, 1)
+		wg.Add(1)
 		go func() {
-			errCh <- listener.Listen(ctx, mockListenHandler{OnNotification: func(payload string) {
+			defer wg.Done()
+			listener.Listen(ctx, mockListenHandler{OnNotification: func(payload string) {
 				atomic.StoreInt32(&connected, 1)
 				assert.Equal(t, "2", payload)
 			}})

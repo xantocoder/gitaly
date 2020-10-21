@@ -806,7 +806,7 @@ func TestPostgresReplicationEventQueue_AcknowledgeStale(t *testing.T) {
 		require.NoError(t, err)
 
 		// events triggered just now (< 1 sec ago), so nothing considered stale
-		require.NoError(t, source.AcknowledgeStale(ctx, time.Second))
+		require.NoError(t, source.AcknowledgeStale(ctx, time.Minute))
 		requireEvents(t, ctx, db, devents)
 	})
 
