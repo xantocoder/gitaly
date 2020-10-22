@@ -195,6 +195,7 @@ func TestPostgresListener_Listen(t *testing.T) {
 		payloads := []string{"this", "is", "a", "payload"}
 
 		listener, result := listenNotify(t, opts, 1, payloads)
+		defer listener.close(true, nil)
 		require.Equal(t, payloads, result)
 
 		metrics := readMetrics(t, listener.reconnectTotal)
@@ -216,13 +217,15 @@ func TestPostgresListener_Listen(t *testing.T) {
 			expResult = append(expResult, payloads...)
 		}
 
-		_, result := listenNotify(t, opts, numNotifiers, payloads)
+		listener, result := listenNotify(t, opts, numNotifiers, payloads)
+		defer listener.close(true, nil)
 		assert.ElementsMatch(t, expResult, result, "there must be no additional data, only expected")
 	})
 
 	t.Run("re-listen", func(t *testing.T) {
 		opts := newOpts()
 		listener, result := listenNotify(t, opts, 1, []string{"1"})
+		defer listener.close(true, nil)
 		require.Equal(t, []string{"1"}, result)
 
 		ctx, cancel := testhelper.Context()
