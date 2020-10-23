@@ -1,17 +1,11 @@
 package diff
 
 import (
-	"io"
-
 	"gitlab.com/gitlab-org/gitaly/internal/git"
 	"gitlab.com/gitlab-org/gitaly/internal/gitaly/diff"
 	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-)
-
-var (
-	maxNumStatBatchSize = 1000
 )
 
 func (s *server) DiffStats(in *gitalypb.DiffStatsRequest, stream gitalypb.DiffService_DiffStatsServer) error {
@@ -33,35 +27,7 @@ func (s *server) DiffStats(in *gitalypb.DiffStatsRequest, stream gitalypb.DiffSe
 		return status.Errorf(codes.Internal, "%s: cmd: %v", "DiffStats", err)
 	}
 
-	parser := diff.NewDiffNumStatParser(cmd)
-
-	for {
-		stat, err := parser.NextNumStat()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-
-			return err
-		}
-
-		numStat := &gitalypb.DiffStats{
-			Additions: stat.Additions,
-			Deletions: stat.Deletions,
-			Path:      stat.Path,
-			OldPath:   stat.OldPath,
-		}
-
-		batch = append(batch, numStat)
-
-		if len(batch) == maxNumStatBatchSize {
-			if err := sendStats(batch, stream); err != nil {
-				return err
-			}
-
-			batch = nil
-		}
-	}
+	diff.ParseNumStats(batch, cmd)
 
 	if err := cmd.Wait(); err != nil {
 		return status.Errorf(codes.Unavailable, "%s: %v", "DiffStats", err)

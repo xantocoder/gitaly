@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
+	"gitlab.com/gitlab-org/gitaly/internal/command"
 )
 
 // NumStat represents a single parsed diff file change
@@ -15,6 +17,10 @@ type NumStat struct {
 	Additions int32
 	Deletions int32
 }
+
+var (
+	maxNumStatBatchSize = 1000
+)
 
 // NumStatParser holds necessary state for parsing the numstat output
 type NumStatParser struct {
@@ -104,4 +110,34 @@ func convertNumStat(num []byte) (int32, error) {
 	}
 
 	return int32(parsedNum), nil
+}
+
+func ParseNumStats(batch []*gitalypb.DiffStats, cmdOutput *command.Command) (error) {
+	parser := NewDiffNumStatParser(cmdOutput)
+
+	for {
+		stat, err := parser.NextNumStat()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return err
+		}
+
+		numStat := &gitalypb.DiffStats{
+			Additions: stat.Additions,
+			Deletions: stat.Deletions,
+			Path:      stat.Path,
+			OldPath:   stat.OldPath,
+		}
+
+		batch = append(batch, numStat)
+
+		if len(batch) == maxNumStatBatchSize {
+			return nil
+		}
+	}
+
+	return nil
 }

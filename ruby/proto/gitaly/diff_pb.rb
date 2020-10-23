@@ -84,6 +84,10 @@ Google::Protobuf::DescriptorPool.generated_pool.build do
     add_message "gitaly.DiffStatsResponse" do
       repeated :stats, :message, 1, "gitaly.DiffStats"
     end
+    add_message "gitaly.DiffStatsBetweenTreesRequest" do
+      optional :repository, :message, 1, "gitaly.Repository"
+      repeated :trees, :string, 2
+    end
   end
 end
 
@@ -100,4 +104,5 @@ module Gitaly
   DiffStatsRequest = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.DiffStatsRequest").msgclass
   DiffStats = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.DiffStats").msgclass
   DiffStatsResponse = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.DiffStatsResponse").msgclass
+  DiffStatsBetweenTreesRequest = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.DiffStatsBetweenTreesRequest").msgclass
 end
