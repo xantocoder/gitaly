@@ -112,7 +112,7 @@ func convertNumStat(num []byte) (int32, error) {
 	return int32(parsedNum), nil
 }
 
-func ParseNumStats(batch []*gitalypb.DiffStats, cmdOutput *command.Command) (error) {
+func ParseNumStats(batch []*gitalypb.DiffStats, cmdOutput *command.Command) error {
 	parser := NewDiffNumStatParser(cmdOutput)
 
 	for {

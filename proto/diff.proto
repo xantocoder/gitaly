@@ -35,7 +35,7 @@ service DiffService {
       op: ACCESSOR
     };
   }
-  rpc DiffStatsBetweenTrees(DiffStatsBetweenTreesRequest) returns (stream DiffStatsResponse) {
+  rpc DiffStatsCommitRange(DiffStatsCommitRangeRequest) returns (stream DiffStatsCommitRangeResponse) {
     option (op_type) = {
       op: ACCESSOR
     };
@@ -149,8 +149,12 @@ message DiffStatsResponse {
   repeated DiffStats stats = 1;
 }
 
-message DiffStatsBetweenTreesRequest {
+message DiffStatsCommitRangeRequest {
   Repository repository = 1 [(target_repository)=true];
-  repeated string trees = 2;
+  repeated string commits = 2;
+}
+
+message DiffStatsCommitRangeResponse {
+  repeated DiffStats stats = 1;
 }
 

@@ -10,7 +10,7 @@ import (
 	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
 )
 
-func TestSuccessfulDiffStatsBetweenTreesRequest(t *testing.T) {
+func TestSuccessfulDiffStatsCommitRangeRequest(t *testing.T) {
 	server, serverSocketPath := runDiffServer(t)
 	defer server.Stop()
 
@@ -20,8 +20,8 @@ func TestSuccessfulDiffStatsBetweenTreesRequest(t *testing.T) {
 	testRepo, _, cleanupFn := testhelper.NewTestRepo(t)
 	defer cleanupFn()
 
-	trees := []string{"e4003da16c1c2c3fc4567700121b17bf8e591c6c", "57290e673a4c87f51294f5216672cbc58d485d25", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"}
-	rpcRequest := &gitalypb.DiffStatsBetweenTreesRequest{Repository: testRepo, Trees: trees}
+	commits := []string{"e4003da16c1c2c3fc4567700121b17bf8e591c6c", "57290e673a4c87f51294f5216672cbc58d485d25", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"}
+	rpcRequest := &gitalypb.DiffStatsCommitRangeRequest{Repository: testRepo, Commits: commits}
 
 	ctx, cancel := testhelper.Context()
 	defer cancel()
@@ -99,7 +99,7 @@ func TestSuccessfulDiffStatsBetweenTreesRequest(t *testing.T) {
 		},
 	}
 
-	stream, err := client.DiffStatsBetweenTrees(ctx, rpcRequest)
+	stream, err := client.DiffStatsCommitRange(ctx, rpcRequest)
 	if err != nil {
 		t.Fatal(err)
 	}

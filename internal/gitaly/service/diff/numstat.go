@@ -27,7 +27,9 @@ func (s *server) DiffStats(in *gitalypb.DiffStatsRequest, stream gitalypb.DiffSe
 		return status.Errorf(codes.Internal, "%s: cmd: %v", "DiffStats", err)
 	}
 
-	diff.ParseNumStats(batch, cmd)
+	if err := diff.ParseNumStats(batch, cmd); err != nil {
+		return err
+	}
 
 	if err := cmd.Wait(); err != nil {
 		return status.Errorf(codes.Unavailable, "%s: %v", "DiffStats", err)

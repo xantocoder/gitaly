@@ -8,17 +8,17 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (s *server) DiffStatsBetweenTrees(in *gitalypb.DiffStatsBetweenTreesRequest, stream gitalypb.DiffService_DiffStatsBetweenTreesServer) error {
-	if err := s.validateDiffStatsBetweenTreesRequestParams(in); err != nil {
+func (s *server) DiffStatsCommitRange(in *gitalypb.DiffStatsCommitRangeRequest, stream gitalypb.DiffService_DiffStatsCommitRangeServer) error {
+	if err := s.validateDiffStatsCommitRangeRequestParams(in); err != nil {
 		return err
 	}
 
 	var batch []*gitalypb.DiffStats
-	for i := 0 ; i < len(in.Trees)  - 1 ; i ++ {
+	for _, commit := range in.GetCommits() {
 		cmd, err := git.SafeCmd(stream.Context(), in.Repository, nil, git.SubCmd{
 			Name:  "diff",
 			Flags: []git.Option{git.Flag{Name: "--numstat"}, git.Flag{Name: "-z"}},
-			Args:  []string{in.Trees[i + 1], in.Trees[i]},
+			Args:  []string{commit + "~", commit},
 		})
 
 		if err != nil {
@@ -28,17 +28,31 @@ func (s *server) DiffStatsBetweenTrees(in *gitalypb.DiffStatsBetweenTreesRequest
 			return status.Errorf(codes.Internal, "%s: cmd: %v", "DiffStats", err)
 		}
 
-		diff.ParseNumStats(batch, cmd)
+		if err := diff.ParseNumStats(batch, cmd); err != nil {
+			return err
+		}
 
 		if err := cmd.Wait(); err != nil {
 			return status.Errorf(codes.Unavailable, "%s: %v", "DiffStats", err)
 		}
 	}
 
-	return sendStats(batch, stream)
+	return sendCommitRangeStats(batch, stream)
 }
 
-func (s *server) validateDiffStatsBetweenTreesRequestParams(in *gitalypb.DiffStatsBetweenTreesRequest) error {
+func sendCommitRangeStats(batch []*gitalypb.DiffStats, stream gitalypb.DiffService_DiffStatsCommitRangeServer) error {
+	if len(batch) == 0 {
+		return nil
+	}
+
+	if err := stream.Send(&gitalypb.DiffStatsCommitRangeResponse{Stats: batch}); err != nil {
+		return status.Errorf(codes.Unavailable, "DiffStats: send: %v", err)
+	}
+
+	return nil
+}
+
+func (s *server) validateDiffStatsCommitRangeRequestParams(in *gitalypb.DiffStatsCommitRangeRequest) error {
 	repo := in.GetRepository()
 	if _, err := s.locator.GetRepoPath(repo); err != nil {
 		return err
