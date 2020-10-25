@@ -1,6 +1,8 @@
 package diff
 
 import (
+	"fmt"
+
 	"gitlab.com/gitlab-org/gitaly/internal/git"
 	"gitlab.com/gitlab-org/gitaly/internal/gitaly/diff"
 	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
@@ -58,9 +60,17 @@ func (s *server) validateDiffStatsCommitRangeRequestParams(in *gitalypb.DiffStat
 		return err
 	}
 
-	// if err := validateRequest(in); err != nil {
-	// 	return status.Errorf(codes.InvalidArgument, "DiffStats: %v", err)
-	// }
+	if err := validateDiffStatCommitRangeRequest(in); err != nil {
+		return status.Errorf(codes.InvalidArgument, "DiffStats: %v", err)
+	}
+
+	return nil
+}
+
+func validateDiffStatCommitRangeRequest(in *gitalypb.DiffStatsCommitRangeRequest) error {
+	if len(in.GetCommits()) <= 0 {
+		return fmt.Errorf("must have more than 1 commit")
+	}
 
 	return nil
 }
