@@ -114,7 +114,6 @@ func TestSuccessfulDiffStatsCommitRangeRequest(t *testing.T) {
 
 		stats := fetchedStats.GetStats()
 
-
 		for index, fetchedStat := range stats {
 			expectedStat := expectedStats[index]
 
