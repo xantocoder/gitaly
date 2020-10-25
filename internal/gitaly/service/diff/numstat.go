@@ -1,9 +1,11 @@
 package diff
 
 import (
+	"github.com/golang/protobuf/proto"
 	"gitlab.com/gitlab-org/gitaly/internal/git"
 	"gitlab.com/gitlab-org/gitaly/internal/gitaly/diff"
 	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
+	"gitlab.com/gitlab-org/gitaly/internal/helper/chunk"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -14,6 +16,9 @@ func (s *server) DiffStats(in *gitalypb.DiffStatsRequest, stream gitalypb.DiffSe
 	}
 
 	var batch []*gitalypb.DiffStats
+
+	diffChunker := chunk.New(&diffStatSender{stream: stream})
+
 	cmd, err := git.SafeCmd(stream.Context(), in.Repository, nil, git.SubCmd{
 		Name:  "diff",
 		Flags: []git.Option{git.Flag{Name: "--numstat"}, git.Flag{Name: "-z"}},
@@ -27,7 +32,7 @@ func (s *server) DiffStats(in *gitalypb.DiffStatsRequest, stream gitalypb.DiffSe
 		return status.Errorf(codes.Internal, "%s: cmd: %v", "DiffStats", err)
 	}
 
-	if err := diff.ParseNumStats(batch, cmd); err != nil {
+	if err := diff.ParseNumStats(batch, cmd, diffChunker); err != nil {
 		return err
 	}
 
@@ -35,19 +40,26 @@ func (s *server) DiffStats(in *gitalypb.DiffStatsRequest, stream gitalypb.DiffSe
 		return status.Errorf(codes.Unavailable, "%s: %v", "DiffStats", err)
 	}
 
-	return sendStats(batch, stream)
+	return diffChunker.Flush()
 }
 
-func sendStats(batch []*gitalypb.DiffStats, stream gitalypb.DiffService_DiffStatsServer) error {
-	if len(batch) == 0 {
-		return nil
-	}
+type diffStatSender struct {
+	diffStats   []*gitalypb.DiffStats
+	stream gitalypb.DiffService_DiffStatsServer
+}
 
-	if err := stream.Send(&gitalypb.DiffStatsResponse{Stats: batch}); err != nil {
-		return status.Errorf(codes.Unavailable, "DiffStats: send: %v", err)
-	}
+func (t *diffStatSender) Reset() {
+	t.diffStats = nil
+}
 
-	return nil
+func (t *diffStatSender) Append(m proto.Message) {
+	t.diffStats = append(t.diffStats, m.(*gitalypb.DiffStats))
+}
+
+func (t *diffStatSender) Send() error {
+	return t.stream.Send(&gitalypb.DiffStatsResponse{
+		Stats: t.diffStats,
+	})
 }
 
 func (s *server) validateDiffStatsRequestParams(in *gitalypb.DiffStatsRequest) error {

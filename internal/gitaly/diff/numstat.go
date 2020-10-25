@@ -9,6 +9,7 @@ import (
 
 	"gitlab.com/gitlab-org/gitaly/internal/command"
 	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
+	"gitlab.com/gitlab-org/gitaly/internal/helper/chunk"
 )
 
 // NumStat represents a single parsed diff file change
@@ -99,21 +100,7 @@ func (parser *NumStatParser) NextNumStat() (*NumStat, error) {
 	return result, nil
 }
 
-func convertNumStat(num []byte) (int32, error) {
-	// It's a binary numstat
-	if bytes.Equal(num, []byte("-")) {
-		return 0, nil
-	}
-
-	parsedNum, err := strconv.ParseInt(string(num), 10, 32)
-	if err != nil {
-		return 0, fmt.Errorf("error converting diff num stat: %v", err)
-	}
-
-	return int32(parsedNum), nil
-}
-
-func ParseNumStats(batch []*gitalypb.DiffStats, cmdOutput *command.Command) error {
+func ParseNumStats(batch []*gitalypb.DiffStats, cmdOutput *command.Command, chunker *chunk.Chunker) error {
 	parser := NewDiffNumStatParser(cmdOutput)
 
 	for {
@@ -133,12 +120,24 @@ func ParseNumStats(batch []*gitalypb.DiffStats, cmdOutput *command.Command) erro
 			OldPath:   stat.OldPath,
 		}
 
-		batch = append(batch, numStat)
-
-		if len(batch) == maxNumStatBatchSize {
-			return nil
+		if err := chunker.Send(numStat); err != nil {
+			return fmt.Errorf("sending to chunker: %v", err)
 		}
 	}
 
 	return nil
+}
+
+func convertNumStat(num []byte) (int32, error) {
+	// It's a binary numstat
+	if bytes.Equal(num, []byte("-")) {
+		return 0, nil
+	}
+
+	parsedNum, err := strconv.ParseInt(string(num), 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("error converting diff num stat: %v", err)
+	}
+
+	return int32(parsedNum), nil
 }

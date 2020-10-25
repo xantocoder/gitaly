@@ -3,9 +3,11 @@ package diff
 import (
 	"fmt"
 
+	"github.com/golang/protobuf/proto"
 	"gitlab.com/gitlab-org/gitaly/internal/git"
 	"gitlab.com/gitlab-org/gitaly/internal/gitaly/diff"
 	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
+	"gitlab.com/gitlab-org/gitaly/internal/helper/chunk"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -16,6 +18,9 @@ func (s *server) DiffStatsCommitRange(in *gitalypb.DiffStatsCommitRangeRequest, 
 	}
 
 	var batch []*gitalypb.DiffStats
+
+	diffChunker := chunk.New(&diffStatCommitRangeSender{stream: stream})
+
 	for _, commit := range in.GetCommits() {
 		cmd, err := git.SafeCmd(stream.Context(), in.Repository, nil, git.SubCmd{
 			Name:  "diff",
@@ -30,7 +35,7 @@ func (s *server) DiffStatsCommitRange(in *gitalypb.DiffStatsCommitRangeRequest, 
 			return status.Errorf(codes.Internal, "%s: cmd: %v", "DiffStats", err)
 		}
 
-		if err := diff.ParseNumStats(batch, cmd); err != nil {
+		if err := diff.ParseNumStats(batch, cmd, diffChunker); err != nil {
 			return err
 		}
 
@@ -39,19 +44,26 @@ func (s *server) DiffStatsCommitRange(in *gitalypb.DiffStatsCommitRangeRequest, 
 		}
 	}
 
-	return sendCommitRangeStats(batch, stream)
+	return diffChunker.Flush()
 }
 
-func sendCommitRangeStats(batch []*gitalypb.DiffStats, stream gitalypb.DiffService_DiffStatsCommitRangeServer) error {
-	if len(batch) == 0 {
-		return nil
-	}
+type diffStatCommitRangeSender struct {
+	diffStats   []*gitalypb.DiffStats
+	stream gitalypb.DiffService_DiffStatsCommitRangeServer
+}
 
-	if err := stream.Send(&gitalypb.DiffStatsCommitRangeResponse{Stats: batch}); err != nil {
-		return status.Errorf(codes.Unavailable, "DiffStats: send: %v", err)
-	}
+func (t *diffStatCommitRangeSender) Reset() {
+	t.diffStats = nil
+}
 
-	return nil
+func (t *diffStatCommitRangeSender) Append(m proto.Message) {
+	t.diffStats = append(t.diffStats, m.(*gitalypb.DiffStats))
+}
+
+func (t *diffStatCommitRangeSender) Send() error {
+	return t.stream.Send(&gitalypb.DiffStatsCommitRangeResponse{
+		Stats: t.diffStats,
+	})
 }
 
 func (s *server) validateDiffStatsCommitRangeRequestParams(in *gitalypb.DiffStatsCommitRangeRequest) error {
