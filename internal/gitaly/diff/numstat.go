@@ -20,10 +20,6 @@ type NumStat struct {
 	Deletions int32
 }
 
-var (
-	maxNumStatBatchSize = 1000
-)
-
 // NumStatParser holds necessary state for parsing the numstat output
 type NumStatParser struct {
 	reader *bufio.Reader

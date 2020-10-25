@@ -80,8 +80,14 @@ func (s *server) validateDiffStatsCommitRangeRequestParams(in *gitalypb.DiffStat
 }
 
 func validateDiffStatCommitRangeRequest(in *gitalypb.DiffStatsCommitRangeRequest) error {
-	if len(in.GetCommits()) <= 0 {
+	if len(in.GetCommits()) <= 1 {
 		return fmt.Errorf("must have more than 1 commit")
+	}
+
+	for _, commit := range in.GetCommits() {
+		if commit == "" {
+			return fmt.Errorf("commits cannot contain an empty commit")
+		}
 	}
 
 	return nil

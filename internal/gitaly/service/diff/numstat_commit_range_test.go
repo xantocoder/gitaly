@@ -8,6 +8,7 @@ import (
 	"gitlab.com/gitlab-org/gitaly/internal/gitaly/diff"
 	"gitlab.com/gitlab-org/gitaly/internal/testhelper"
 	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
+	"google.golang.org/grpc/codes"
 )
 
 func TestSuccessfulDiffStatsCommitRangeRequest(t *testing.T) {
@@ -121,5 +122,75 @@ func TestSuccessfulDiffStatsCommitRangeRequest(t *testing.T) {
 			require.Equal(t, expectedStat.Additions, fetchedStat.Additions)
 			require.Equal(t, expectedStat.Deletions, fetchedStat.Deletions)
 		}
+	}
+}
+
+func TestFailedDiffStatsCommitRangeRequest(t *testing.T) {
+	server, serverSocketPath := runDiffServer(t)
+	defer server.Stop()
+
+	client, conn := newDiffClient(t, serverSocketPath)
+	defer conn.Close()
+
+	ctx, cancel := testhelper.Context()
+	defer cancel()
+
+	testRepo, _, cleanupFn := testhelper.NewTestRepo(t)
+	defer cleanupFn()
+
+	tests := []struct {
+		desc          string
+		repo          *gitalypb.Repository
+		commits       []string
+		err           codes.Code
+	}{
+		{
+			desc:          "repo not found",
+			repo:          &gitalypb.Repository{StorageName: testRepo.GetStorageName(), RelativePath: "bar.git"},
+			commits:       []string{"e4003da16c1c2c3fc4567700121b17bf8e591c6c", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"},
+			err:           codes.NotFound,
+		},
+		{
+			desc:          "storage not found",
+			repo:          &gitalypb.Repository{StorageName: "foo", RelativePath: "bar.git"},
+			commits:       []string{"e4003da16c1c2c3fc4567700121b17bf8e591c6c", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"},
+			err:           codes.InvalidArgument,
+		},
+		{
+			desc:          "must have more than 1 commit",
+			repo:          testRepo,
+			commits:       []string{"e4003da16c1c2c3fc4567700121b17bf8e591c6c"},
+			err:           codes.InvalidArgument,
+		},
+		{
+			desc:          "commits cannot contain an empty commit",
+			repo:          testRepo,
+			commits:       []string{"8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab", ""},
+			err:           codes.InvalidArgument,
+		},
+		{
+			desc:          "invalid commit",
+			repo:          testRepo,
+			commits:       []string{"invalidinvalidinvalid", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"},
+			err:           codes.Unavailable,
+		},
+		{
+			desc:          "commit not found",
+			repo:          testRepo,
+			commits:       []string{"z4003da16c1c2c3fc4567700121b17bf8e591c6c", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"},
+			err:           codes.Unavailable,
+		},
+	}
+
+	for _, tc := range tests {
+		rpcRequest := &gitalypb.DiffStatsCommitRangeRequest{Repository: tc.repo, Commits: tc.commits}
+		stream, err := client.DiffStatsCommitRange(ctx, rpcRequest)
+		require.NoError(t, err)
+
+		t.Run(tc.desc, func(t *testing.T) {
+			_, err := stream.Recv()
+
+			testhelper.RequireGrpcError(t, err, tc.err)
+		})
 	}
 }
