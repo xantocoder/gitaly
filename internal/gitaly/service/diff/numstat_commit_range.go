@@ -21,11 +21,11 @@ func (s *server) DiffStatsCommitRange(in *gitalypb.DiffStatsCommitRangeRequest, 
 
 	diffChunker := chunk.New(&diffStatCommitRangeSender{stream: stream})
 
-	for _, commit := range in.GetCommits() {
+	for i := 0 ; i < len(in.GetCommits()) - 1 ; i ++ {
 		cmd, err := git.SafeCmd(stream.Context(), in.Repository, nil, git.SubCmd{
 			Name:  "diff",
 			Flags: []git.Option{git.Flag{Name: "--numstat"}, git.Flag{Name: "-z"}},
-			Args:  []string{commit + "~", commit},
+			Args:  []string{in.GetCommits()[i + 1], in.GetCommits()[i]},
 		})
 
 		if err != nil {
