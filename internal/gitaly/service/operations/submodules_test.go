@@ -9,16 +9,29 @@ import (
 	"github.com/stretchr/testify/require"
 	"gitlab.com/gitlab-org/gitaly/internal/git/log"
 	"gitlab.com/gitlab-org/gitaly/internal/git/lstree"
+	"gitlab.com/gitlab-org/gitaly/internal/metadata/featureflag"
 	"gitlab.com/gitlab-org/gitaly/internal/testhelper"
 	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
 	"google.golang.org/grpc/codes"
 )
 
 func TestSuccessfulUserUpdateSubmoduleRequest(t *testing.T) {
-	ctx, cancel := testhelper.Context()
-	defer cancel()
+	featureSets, err := testhelper.NewFeatureSets(
+		[]featureflag.FeatureFlag{
+			featureflag.GoUserUpdateSubmodule,
+		},
+	)
+	require.NoError(t, err)
 
-	testSuccessfulUserUpdateSubmoduleRequest(t, ctx)
+	for _, fs := range featureSets {
+		t.Run("diabled "+fs.String(), func(t *testing.T) {
+			ctx, cancel := testhelper.Context()
+			defer cancel()
+
+			ctx = fs.Disable(ctx)
+			testSuccessfulUserUpdateSubmoduleRequest(t, ctx)
+		})
+	}
 }
 
 func testSuccessfulUserUpdateSubmoduleRequest(t *testing.T, ctx context.Context) {
@@ -86,6 +99,25 @@ func testSuccessfulUserUpdateSubmoduleRequest(t *testing.T, ctx context.Context)
 }
 
 func TestFailedUserUpdateSubmoduleRequestDueToValidations(t *testing.T) {
+	featureSets, err := testhelper.NewFeatureSets(
+		[]featureflag.FeatureFlag{
+			featureflag.GoUserUpdateSubmodule,
+		},
+	)
+	require.NoError(t, err)
+
+	for _, fs := range featureSets {
+		t.Run("diabled "+fs.String(), func(t *testing.T) {
+			ctx, cancel := testhelper.Context()
+			defer cancel()
+
+			ctx = fs.Disable(ctx)
+			testFailedUserUpdateSubmoduleRequestDueToValidations(t, ctx)
+		})
+	}
+}
+
+func testFailedUserUpdateSubmoduleRequestDueToValidations(t *testing.T, ctx context.Context) {
 	serverSocketPath, stop := runOperationServiceServer(t)
 	defer stop()
 
@@ -200,7 +232,7 @@ func TestFailedUserUpdateSubmoduleRequestDueToValidations(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.desc, func(t *testing.T) {
-			ctx, cancel := testhelper.Context()
+			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
 			_, err := client.UserUpdateSubmodule(ctx, testCase.request)
@@ -211,9 +243,25 @@ func TestFailedUserUpdateSubmoduleRequestDueToValidations(t *testing.T) {
 }
 
 func TestFailedUserUpdateSubmoduleRequestDueToInvalidBranch(t *testing.T) {
-	ctx, cancel := testhelper.Context()
-	defer cancel()
+	featureSets, err := testhelper.NewFeatureSets(
+		[]featureflag.FeatureFlag{
+			featureflag.GoUserUpdateSubmodule,
+		},
+	)
+	require.NoError(t, err)
 
+	for _, fs := range featureSets {
+		t.Run("diabled "+fs.String(), func(t *testing.T) {
+			ctx, cancel := testhelper.Context()
+			defer cancel()
+
+			ctx = fs.Disable(ctx)
+			testFailedUserUpdateSubmoduleRequestDueToInvalidBranch(t, ctx)
+		})
+	}
+}
+
+func testFailedUserUpdateSubmoduleRequestDueToInvalidBranch(t *testing.T, ctx context.Context) {
 	serverSocketPath, stop := runOperationServiceServer(t)
 	defer stop()
 
@@ -238,9 +286,25 @@ func TestFailedUserUpdateSubmoduleRequestDueToInvalidBranch(t *testing.T) {
 }
 
 func TestFailedUserUpdateSubmoduleRequestDueToInvalidSubmodule(t *testing.T) {
-	ctx, cancel := testhelper.Context()
-	defer cancel()
+	featureSets, err := testhelper.NewFeatureSets(
+		[]featureflag.FeatureFlag{
+			featureflag.GoUserUpdateSubmodule,
+		},
+	)
+	require.NoError(t, err)
 
+	for _, fs := range featureSets {
+		t.Run("diabled "+fs.String(), func(t *testing.T) {
+			ctx, cancel := testhelper.Context()
+			defer cancel()
+
+			ctx = fs.Disable(ctx)
+			testFailedUserUpdateSubmoduleRequestDueToInvalidSubmodule(t, ctx)
+		})
+	}
+}
+
+func testFailedUserUpdateSubmoduleRequestDueToInvalidSubmodule(t *testing.T, ctx context.Context) {
 	serverSocketPath, stop := runOperationServiceServer(t)
 	defer stop()
 
@@ -265,9 +329,25 @@ func TestFailedUserUpdateSubmoduleRequestDueToInvalidSubmodule(t *testing.T) {
 }
 
 func TestFailedUserUpdateSubmoduleRequestDueToSameReference(t *testing.T) {
-	ctx, cancel := testhelper.Context()
-	defer cancel()
+	featureSets, err := testhelper.NewFeatureSets(
+		[]featureflag.FeatureFlag{
+			featureflag.GoUserUpdateSubmodule,
+		},
+	)
+	require.NoError(t, err)
 
+	for _, fs := range featureSets {
+		t.Run("diabled "+fs.String(), func(t *testing.T) {
+			ctx, cancel := testhelper.Context()
+			defer cancel()
+
+			ctx = fs.Disable(ctx)
+			testFailedUserUpdateSubmoduleRequestDueToSameReference(t, ctx)
+		})
+	}
+}
+
+func testFailedUserUpdateSubmoduleRequestDueToSameReference(t *testing.T, ctx context.Context) {
 	serverSocketPath, stop := runOperationServiceServer(t)
 	defer stop()
 
@@ -295,9 +375,25 @@ func TestFailedUserUpdateSubmoduleRequestDueToSameReference(t *testing.T) {
 }
 
 func TestFailedUserUpdateSubmoduleRequestDueToRepositoryEmpty(t *testing.T) {
-	ctx, cancel := testhelper.Context()
-	defer cancel()
+	featureSets, err := testhelper.NewFeatureSets(
+		[]featureflag.FeatureFlag{
+			featureflag.GoUserUpdateSubmodule,
+		},
+	)
+	require.NoError(t, err)
 
+	for _, fs := range featureSets {
+		t.Run("diabled "+fs.String(), func(t *testing.T) {
+			ctx, cancel := testhelper.Context()
+			defer cancel()
+
+			ctx = fs.Disable(ctx)
+			testFailedUserUpdateSubmoduleRequestDueToRepositoryEmpty(t, ctx)
+		})
+	}
+}
+
+func testFailedUserUpdateSubmoduleRequestDueToRepositoryEmpty(t *testing.T, ctx context.Context) {
 	serverSocketPath, stop := runOperationServiceServer(t)
 	defer stop()
 
