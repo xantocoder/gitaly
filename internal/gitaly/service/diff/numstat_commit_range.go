@@ -21,27 +21,25 @@ func (s *server) DiffStatsCommitRange(in *gitalypb.DiffStatsCommitRangeRequest, 
 
 	diffChunker := chunk.New(&diffStatCommitRangeSender{stream: stream})
 
-	for i := 0 ; i < len(in.GetCommits()) - 1 ; i ++ {
-		cmd, err := git.SafeCmd(stream.Context(), in.Repository, nil, git.SubCmd{
-			Name:  "diff",
-			Flags: []git.Option{git.Flag{Name: "--numstat"}, git.Flag{Name: "-z"}},
-			Args:  []string{in.GetCommits()[i + 1], in.GetCommits()[i]},
-		})
+	cmd, err := git.SafeCmd(stream.Context(), in.Repository, nil, git.SubCmd{
+		Name:  "diff-tree",
+		Flags: []git.Option{git.Flag{Name: "--numstat"}, git.Flag{Name: "-z"}, git.Flag{Name: "--stdin"}, git.Flag{Name: "-c"}, git.Flag{Name: "-m"}, git.Flag{Name: "--no-commit-id"}},
+		Args:  in.GetCommits(),
+	})
 
-		if err != nil {
-			if _, ok := status.FromError(err); ok {
-				return err
-			}
-			return status.Errorf(codes.Internal, "%s: cmd: %v", "DiffStats", err)
-		}
-
-		if err := diff.ParseNumStats(batch, cmd, diffChunker); err != nil {
+	if err != nil {
+		if _, ok := status.FromError(err); ok {
 			return err
 		}
+		return status.Errorf(codes.Internal, "%s: cmd: %v", "DiffStats", err)
+	}
 
-		if err := cmd.Wait(); err != nil {
-			return status.Errorf(codes.Unavailable, "%s: %v", "DiffStats", err)
-		}
+	if err := diff.ParseNumStats(batch, cmd, diffChunker); err != nil {
+		return err
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return status.Errorf(codes.Unavailable, "%s: %v", "DiffStats", err)
 	}
 
 	return diffChunker.Flush()
