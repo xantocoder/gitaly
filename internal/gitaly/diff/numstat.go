@@ -8,8 +8,8 @@ import (
 	"strconv"
 
 	"gitlab.com/gitlab-org/gitaly/internal/command"
-	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
 	"gitlab.com/gitlab-org/gitaly/internal/helper/chunk"
+	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
 )
 
 // NumStat represents a single parsed diff file change

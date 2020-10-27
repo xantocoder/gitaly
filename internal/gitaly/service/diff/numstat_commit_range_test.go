@@ -139,46 +139,46 @@ func TestFailedDiffStatsCommitRangeRequest(t *testing.T) {
 	defer cleanupFn()
 
 	tests := []struct {
-		desc          string
-		repo          *gitalypb.Repository
-		commits       []string
-		err           codes.Code
+		desc    string
+		repo    *gitalypb.Repository
+		commits []string
+		err     codes.Code
 	}{
 		{
-			desc:          "repo not found",
-			repo:          &gitalypb.Repository{StorageName: testRepo.GetStorageName(), RelativePath: "bar.git"},
-			commits:       []string{"e4003da16c1c2c3fc4567700121b17bf8e591c6c", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"},
-			err:           codes.NotFound,
+			desc:    "repo not found",
+			repo:    &gitalypb.Repository{StorageName: testRepo.GetStorageName(), RelativePath: "bar.git"},
+			commits: []string{"e4003da16c1c2c3fc4567700121b17bf8e591c6c", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"},
+			err:     codes.NotFound,
 		},
 		{
-			desc:          "storage not found",
-			repo:          &gitalypb.Repository{StorageName: "foo", RelativePath: "bar.git"},
-			commits:       []string{"e4003da16c1c2c3fc4567700121b17bf8e591c6c", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"},
-			err:           codes.InvalidArgument,
+			desc:    "storage not found",
+			repo:    &gitalypb.Repository{StorageName: "foo", RelativePath: "bar.git"},
+			commits: []string{"e4003da16c1c2c3fc4567700121b17bf8e591c6c", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"},
+			err:     codes.InvalidArgument,
 		},
 		{
-			desc:          "must have more than 1 commit",
-			repo:          testRepo,
-			commits:       []string{"e4003da16c1c2c3fc4567700121b17bf8e591c6c"},
-			err:           codes.InvalidArgument,
+			desc:    "must have more than 1 commit",
+			repo:    testRepo,
+			commits: []string{"e4003da16c1c2c3fc4567700121b17bf8e591c6c"},
+			err:     codes.InvalidArgument,
 		},
 		{
-			desc:          "commits cannot contain an empty commit",
-			repo:          testRepo,
-			commits:       []string{"8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab", ""},
-			err:           codes.InvalidArgument,
+			desc:    "commits cannot contain an empty commit",
+			repo:    testRepo,
+			commits: []string{"8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab", ""},
+			err:     codes.InvalidArgument,
 		},
 		{
-			desc:          "invalid commit",
-			repo:          testRepo,
-			commits:       []string{"invalidinvalidinvalid", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"},
-			err:           codes.Unavailable,
+			desc:    "invalid commit",
+			repo:    testRepo,
+			commits: []string{"invalidinvalidinvalid", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"},
+			err:     codes.Unavailable,
 		},
 		{
-			desc:          "commit not found",
-			repo:          testRepo,
-			commits:       []string{"z4003da16c1c2c3fc4567700121b17bf8e591c6c", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"},
-			err:           codes.Unavailable,
+			desc:    "commit not found",
+			repo:    testRepo,
+			commits: []string{"z4003da16c1c2c3fc4567700121b17bf8e591c6c", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"},
+			err:     codes.Unavailable,
 		},
 	}
 

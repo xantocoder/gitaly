@@ -6,8 +6,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"gitlab.com/gitlab-org/gitaly/internal/git"
 	"gitlab.com/gitlab-org/gitaly/internal/gitaly/diff"
-	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
 	"gitlab.com/gitlab-org/gitaly/internal/helper/chunk"
+	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -46,8 +46,8 @@ func (s *server) DiffStatsCommitRange(in *gitalypb.DiffStatsCommitRangeRequest, 
 }
 
 type diffStatCommitRangeSender struct {
-	diffStats   []*gitalypb.DiffStats
-	stream gitalypb.DiffService_DiffStatsCommitRangeServer
+	diffStats []*gitalypb.DiffStats
+	stream    gitalypb.DiffService_DiffStatsCommitRangeServer
 }
 
 func (t *diffStatCommitRangeSender) Reset() {

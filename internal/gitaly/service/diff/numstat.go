@@ -4,8 +4,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"gitlab.com/gitlab-org/gitaly/internal/git"
 	"gitlab.com/gitlab-org/gitaly/internal/gitaly/diff"
-	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
 	"gitlab.com/gitlab-org/gitaly/internal/helper/chunk"
+	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -44,8 +44,8 @@ func (s *server) DiffStats(in *gitalypb.DiffStatsRequest, stream gitalypb.DiffSe
 }
 
 type diffStatSender struct {
-	diffStats   []*gitalypb.DiffStats
-	stream gitalypb.DiffService_DiffStatsServer
+	diffStats []*gitalypb.DiffStats
+	stream    gitalypb.DiffService_DiffStatsServer
 }
 
 func (t *diffStatSender) Reset() {
