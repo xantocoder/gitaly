@@ -12,8 +12,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (s *server) DiffStatsCommitRange(in *gitalypb.DiffStatsCommitRangeRequest, stream gitalypb.DiffService_DiffStatsCommitRangeServer) error {
-	if err := s.validateDiffStatsCommitRangeRequestParams(in); err != nil {
+func (s *server) DiffTreeDiffStats(in *gitalypb.DiffTreeDiffStatsRequest, stream gitalypb.DiffService_DiffTreeDiffStatsServer) error {
+	if err := s.validateDiffTreeDiffStatsRequestParams(in); err != nil {
 		return err
 	}
 
@@ -47,7 +47,7 @@ func (s *server) DiffStatsCommitRange(in *gitalypb.DiffStatsCommitRangeRequest, 
 
 type diffStatCommitRangeSender struct {
 	diffStats []*gitalypb.DiffStats
-	stream    gitalypb.DiffService_DiffStatsCommitRangeServer
+	stream    gitalypb.DiffService_DiffTreeDiffStatsServer
 }
 
 func (t *diffStatCommitRangeSender) Reset() {
@@ -59,12 +59,12 @@ func (t *diffStatCommitRangeSender) Append(m proto.Message) {
 }
 
 func (t *diffStatCommitRangeSender) Send() error {
-	return t.stream.Send(&gitalypb.DiffStatsCommitRangeResponse{
+	return t.stream.Send(&gitalypb.DiffTreeDiffStatsResponse{
 		Stats: t.diffStats,
 	})
 }
 
-func (s *server) validateDiffStatsCommitRangeRequestParams(in *gitalypb.DiffStatsCommitRangeRequest) error {
+func (s *server) validateDiffTreeDiffStatsRequestParams(in *gitalypb.DiffTreeDiffStatsRequest) error {
 	repo := in.GetRepository()
 	if _, err := s.locator.GetRepoPath(repo); err != nil {
 		return err
@@ -77,7 +77,7 @@ func (s *server) validateDiffStatsCommitRangeRequestParams(in *gitalypb.DiffStat
 	return nil
 }
 
-func validateDiffStatCommitRangeRequest(in *gitalypb.DiffStatsCommitRangeRequest) error {
+func validateDiffStatCommitRangeRequest(in *gitalypb.DiffTreeDiffStatsRequest) error {
 	if len(in.GetCommits()) <= 1 {
 		return fmt.Errorf("must have more than 1 commit")
 	}

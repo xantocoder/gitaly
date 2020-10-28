@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-func TestSuccessfulDiffStatsCommitRangeRequest(t *testing.T) {
+func TestSuccessfulDiffTreeDiffStatsRequest(t *testing.T) {
 	server, serverSocketPath := runDiffServer(t)
 	defer server.Stop()
 
@@ -22,7 +22,7 @@ func TestSuccessfulDiffStatsCommitRangeRequest(t *testing.T) {
 	defer cleanupFn()
 
 	commits := []string{"e4003da16c1c2c3fc4567700121b17bf8e591c6c", "57290e673a4c87f51294f5216672cbc58d485d25", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"}
-	rpcRequest := &gitalypb.DiffStatsCommitRangeRequest{Repository: testRepo, Commits: commits}
+	rpcRequest := &gitalypb.DiffTreeDiffStatsRequest{Repository: testRepo, Commits: commits}
 
 	ctx, cancel := testhelper.Context()
 	defer cancel()
@@ -100,7 +100,7 @@ func TestSuccessfulDiffStatsCommitRangeRequest(t *testing.T) {
 		},
 	}
 
-	stream, err := client.DiffStatsCommitRange(ctx, rpcRequest)
+	stream, err := client.DiffTreeDiffStats(ctx, rpcRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestSuccessfulDiffStatsCommitRangeRequest(t *testing.T) {
 	}
 }
 
-func TestFailedDiffStatsCommitRangeRequest(t *testing.T) {
+func TestFailedDiffTreeDiffStatsRequest(t *testing.T) {
 	server, serverSocketPath := runDiffServer(t)
 	defer server.Stop()
 
@@ -183,8 +183,8 @@ func TestFailedDiffStatsCommitRangeRequest(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		rpcRequest := &gitalypb.DiffStatsCommitRangeRequest{Repository: tc.repo, Commits: tc.commits}
-		stream, err := client.DiffStatsCommitRange(ctx, rpcRequest)
+		rpcRequest := &gitalypb.DiffTreeDiffStatsRequest{Repository: tc.repo, Commits: tc.commits}
+		stream, err := client.DiffTreeDiffStats(ctx, rpcRequest)
 		require.NoError(t, err)
 
 		t.Run(tc.desc, func(t *testing.T) {
