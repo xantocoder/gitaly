@@ -19,7 +19,7 @@ func (s *server) DiffTreeDiffStats(in *gitalypb.DiffTreeDiffStatsRequest, stream
 
 	var batch []*gitalypb.DiffStats
 
-	diffChunker := chunk.New(&diffStatCommitRangeSender{stream: stream})
+	diffChunker := chunk.New(&diffTreeDiffStatsSender{stream: stream})
 
 	cmd, err := git.SafeCmd(stream.Context(), in.Repository, nil, git.SubCmd{
 		Name:  "diff-tree",
@@ -45,20 +45,20 @@ func (s *server) DiffTreeDiffStats(in *gitalypb.DiffTreeDiffStatsRequest, stream
 	return diffChunker.Flush()
 }
 
-type diffStatCommitRangeSender struct {
+type diffTreeDiffStatsSender struct {
 	diffStats []*gitalypb.DiffStats
 	stream    gitalypb.DiffService_DiffTreeDiffStatsServer
 }
 
-func (t *diffStatCommitRangeSender) Reset() {
+func (t *diffTreeDiffStatsSender) Reset() {
 	t.diffStats = nil
 }
 
-func (t *diffStatCommitRangeSender) Append(m proto.Message) {
+func (t *diffTreeDiffStatsSender) Append(m proto.Message) {
 	t.diffStats = append(t.diffStats, m.(*gitalypb.DiffStats))
 }
 
-func (t *diffStatCommitRangeSender) Send() error {
+func (t *diffTreeDiffStatsSender) Send() error {
 	return t.stream.Send(&gitalypb.DiffTreeDiffStatsResponse{
 		Stats: t.diffStats,
 	})
