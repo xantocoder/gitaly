@@ -15,7 +15,8 @@ import (
 )
 
 func sendTreeEntry(stream gitalypb.CommitService_TreeEntryServer, c *catfile.Batch, revision, path string, limit int64) error {
-	treeEntry, err := NewTreeEntryFinder(c).FindByRevisionAndPath(revision, path)
+	ctx := stream.Context()
+	treeEntry, err := NewTreeEntryFinder(c).FindByRevisionAndPath(ctx, revision, path)
 	if err != nil {
 		return err
 	}
@@ -38,7 +39,7 @@ func sendTreeEntry(stream gitalypb.CommitService_TreeEntryServer, c *catfile.Bat
 	}
 
 	if treeEntry.Type == gitalypb.TreeEntry_TREE {
-		treeInfo, err := c.Info(treeEntry.Oid)
+		treeInfo, err := c.Info(ctx, treeEntry.Oid)
 		if err != nil {
 			return err
 		}
@@ -52,7 +53,7 @@ func sendTreeEntry(stream gitalypb.CommitService_TreeEntryServer, c *catfile.Bat
 		return helper.DecorateError(codes.Unavailable, stream.Send(response))
 	}
 
-	objectInfo, err := c.Info(treeEntry.Oid)
+	objectInfo, err := c.Info(ctx, treeEntry.Oid)
 	if err != nil {
 		return status.Errorf(codes.Internal, "TreeEntry: %v", err)
 	}
@@ -80,7 +81,7 @@ func sendTreeEntry(stream gitalypb.CommitService_TreeEntryServer, c *catfile.Bat
 		return helper.DecorateError(codes.Unavailable, stream.Send(response))
 	}
 
-	blobObj, err := c.Blob(objectInfo.Oid)
+	blobObj, err := c.Blob(ctx, objectInfo.Oid)
 	if err != nil {
 		return err
 	}

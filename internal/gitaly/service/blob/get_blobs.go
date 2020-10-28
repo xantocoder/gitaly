@@ -21,6 +21,7 @@ var treeEntryToObjectType = map[gitalypb.TreeEntry_EntryType]gitalypb.ObjectType
 
 func sendGetBlobsResponse(req *gitalypb.GetBlobsRequest, stream gitalypb.BlobService_GetBlobsServer, c *catfile.Batch) error {
 	tef := commit.NewTreeEntryFinder(c)
+	ctx := stream.Context()
 
 	for _, revisionPath := range req.RevisionPaths {
 		revision := revisionPath.Revision
@@ -30,7 +31,7 @@ func sendGetBlobsResponse(req *gitalypb.GetBlobsRequest, stream gitalypb.BlobSer
 			path = bytes.TrimRight(path, "/")
 		}
 
-		treeEntry, err := tef.FindByRevisionAndPath(revision, string(path))
+		treeEntry, err := tef.FindByRevisionAndPath(ctx, revision, string(path))
 		if err != nil {
 			return err
 		}
@@ -59,7 +60,7 @@ func sendGetBlobsResponse(req *gitalypb.GetBlobsRequest, stream gitalypb.BlobSer
 			continue
 		}
 
-		objectInfo, err := c.Info(treeEntry.Oid)
+		objectInfo, err := c.Info(ctx, treeEntry.Oid)
 		if err != nil {
 			return status.Errorf(codes.Internal, "GetBlobs: %v", err)
 		}
@@ -106,7 +107,9 @@ func sendBlobTreeEntry(response *gitalypb.GetBlobsResponse, stream gitalypb.Blob
 		return nil
 	}
 
-	blobObj, err := c.Blob(response.Oid)
+	ctx := stream.Context()
+
+	blobObj, err := c.Blob(ctx, response.Oid)
 	if err != nil {
 		return status.Errorf(codes.Internal, "GetBlobs: %v", err)
 	}

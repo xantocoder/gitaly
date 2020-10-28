@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.com/gitlab-org/gitaly/internal/git/repository"
 	"gitlab.com/gitlab-org/gitaly/internal/metadata"
@@ -70,7 +71,10 @@ type Batch struct {
 
 // Info returns an ObjectInfo if spec exists. If spec does not exist the
 // error is of type NotFoundError.
-func (c *Batch) Info(revspec string) (*ObjectInfo, error) {
+func (c *Batch) Info(ctx context.Context, revspec string) (*ObjectInfo, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "Batch.Info", opentracing.Tag{"revspec", revspec})
+	defer span.Finish()
+
 	catfileLookupCounter.WithLabelValues("info").Inc()
 	return c.batchCheck.info(revspec)
 }
@@ -79,7 +83,10 @@ func (c *Batch) Info(revspec string) (*ObjectInfo, error) {
 // point to a tree. To prevent this firstuse Info to resolve the revspec
 // and check the object type. Caller must consume the Reader before
 // making another call on C.
-func (c *Batch) Tree(revspec string) (*Object, error) {
+func (c *Batch) Tree(ctx context.Context, revspec string) (*Object, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "Batch.Tree", opentracing.Tag{"revspec", revspec})
+	defer span.Finish()
+
 	catfileLookupCounter.WithLabelValues("tree").Inc()
 	return c.batchProcess.reader(revspec, "tree")
 }
@@ -88,7 +95,10 @@ func (c *Batch) Tree(revspec string) (*Object, error) {
 // point to a commit. To prevent this first use Info to resolve the revspec
 // and check the object type. Caller must consume the Reader before
 // making another call on C.
-func (c *Batch) Commit(revspec string) (*Object, error) {
+func (c *Batch) Commit(ctx context.Context, revspec string) (*Object, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "Batch.Commit", opentracing.Tag{"revspec", revspec})
+	defer span.Finish()
+
 	catfileLookupCounter.WithLabelValues("commit").Inc()
 	return c.batchProcess.reader(revspec, "commit")
 }
@@ -98,14 +108,20 @@ func (c *Batch) Commit(revspec string) (*Object, error) {
 //
 // It is an error if revspec does not point to a blob. To prevent this
 // first use Info to resolve the revspec and check the object type.
-func (c *Batch) Blob(revspec string) (*Object, error) {
+func (c *Batch) Blob(ctx context.Context, revspec string) (*Object, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "Batch.Blob", opentracing.Tag{"revspec", revspec})
+	defer span.Finish()
+
 	catfileLookupCounter.WithLabelValues("blob").Inc()
 	return c.batchProcess.reader(revspec, "blob")
 }
 
 // Tag returns a raw tag object. Caller must consume the Reader before
 // making another call on C.
-func (c *Batch) Tag(revspec string) (*Object, error) {
+func (c *Batch) Tag(ctx context.Context, revspec string) (*Object, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "Batch.Tag", opentracing.Tag{"revspec", revspec})
+	defer span.Finish()
+
 	catfileLookupCounter.WithLabelValues("tag").Inc()
 	return c.batchProcess.reader(revspec, "tag")
 }

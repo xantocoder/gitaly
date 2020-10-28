@@ -110,7 +110,7 @@ func validateGetArchivePrecondition(ctx context.Context, in *gitalypb.GetArchive
 
 	f := commit.NewTreeEntryFinder(c)
 	if path != "." {
-		if ok, err := findGetArchivePath(f, in.GetCommitId(), path); err != nil {
+		if ok, err := findGetArchivePath(ctx, f, in.GetCommitId(), path); err != nil {
 			return err
 		} else if !ok {
 			return helper.ErrPreconditionFailedf("path doesn't exist")
@@ -118,7 +118,7 @@ func validateGetArchivePrecondition(ctx context.Context, in *gitalypb.GetArchive
 	}
 
 	for i, exclude := range exclude {
-		if ok, err := findGetArchivePath(f, in.GetCommitId(), exclude); err != nil {
+		if ok, err := findGetArchivePath(ctx, f, in.GetCommitId(), exclude); err != nil {
 			return err
 		} else if !ok {
 			return helper.ErrPreconditionFailedf("exclude[%d] doesn't exist", i)
@@ -128,8 +128,8 @@ func validateGetArchivePrecondition(ctx context.Context, in *gitalypb.GetArchive
 	return nil
 }
 
-func findGetArchivePath(f *commit.TreeEntryFinder, commitID, path string) (ok bool, err error) {
-	treeEntry, err := f.FindByRevisionAndPath(commitID, path)
+func findGetArchivePath(ctx context.Context, f *commit.TreeEntryFinder, commitID, path string) (ok bool, err error) {
+	treeEntry, err := f.FindByRevisionAndPath(ctx, commitID, path)
 	if err != nil {
 		return false, err
 	}

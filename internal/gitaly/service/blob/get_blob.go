@@ -17,12 +17,14 @@ func (s *server) GetBlob(in *gitalypb.GetBlobRequest, stream gitalypb.BlobServic
 		return status.Errorf(codes.InvalidArgument, "GetBlob: %v", err)
 	}
 
-	c, err := catfile.New(stream.Context(), in.Repository)
+	ctx := stream.Context()
+
+	c, err := catfile.New(ctx, in.Repository)
 	if err != nil {
 		return status.Errorf(codes.Internal, "GetBlob: %v", err)
 	}
 
-	objectInfo, err := c.Info(in.Oid)
+	objectInfo, err := c.Info(ctx, in.Oid)
 	if err != nil && !catfile.IsNotFound(err) {
 		return status.Errorf(codes.Internal, "GetBlob: %v", err)
 	}
@@ -43,7 +45,7 @@ func (s *server) GetBlob(in *gitalypb.GetBlobRequest, stream gitalypb.BlobServic
 		return helper.DecorateError(codes.Unavailable, stream.Send(firstMessage))
 	}
 
-	blobObj, err := c.Blob(objectInfo.Oid)
+	blobObj, err := c.Blob(ctx, objectInfo.Oid)
 	if err != nil {
 		return status.Errorf(codes.Internal, "GetBlob: %v", err)
 	}
