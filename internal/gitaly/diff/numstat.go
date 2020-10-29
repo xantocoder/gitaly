@@ -7,7 +7,6 @@ import (
 	"io"
 	"strconv"
 
-	"gitlab.com/gitlab-org/gitaly/internal/command"
 	"gitlab.com/gitlab-org/gitaly/internal/helper/chunk"
 	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
 )
@@ -44,6 +43,7 @@ func (parser *NumStatParser) NextNumStat() (*NumStat, error) {
 	result := &NumStat{}
 
 	data, err := parser.reader.ReadBytes(numStatDelimiter)
+	fmt.Println(err)
 	if err != nil {
 		return nil, err
 	}
@@ -96,8 +96,8 @@ func (parser *NumStatParser) NextNumStat() (*NumStat, error) {
 	return result, nil
 }
 
-func ParseNumStats(batch []*gitalypb.DiffStats, cmdOutput *command.Command, chunker *chunk.Chunker) error {
-	parser := NewDiffNumStatParser(cmdOutput)
+func ParseNumStats(batch []*gitalypb.DiffStats, reader io.Reader, chunker *chunk.Chunker) error {
+	parser := NewDiffNumStatParser(reader)
 
 	for {
 		stat, err := parser.NextNumStat()
@@ -116,12 +116,19 @@ func ParseNumStats(batch []*gitalypb.DiffStats, cmdOutput *command.Command, chun
 			OldPath:   stat.OldPath,
 		}
 
-		if err := chunker.Send(numStat); err != nil {
-			return fmt.Errorf("sending to chunker: %v", err)
-		}
+		fmt.Println(numStat)
 	}
 
 	return nil
+}
+
+func (stat *NumStat) ToProto() *gitalypb.DiffStats {
+	return &gitalypb.DiffStats{
+		Additions: stat.Additions,
+		Deletions: stat.Deletions,
+		Path:      stat.Path,
+		OldPath:   stat.OldPath,
+	}
 }
 
 func convertNumStat(num []byte) (int32, error) {

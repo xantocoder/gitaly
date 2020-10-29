@@ -2,6 +2,7 @@ package diff
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/golang/protobuf/proto"
 	"gitlab.com/gitlab-org/gitaly/internal/git"
@@ -12,19 +13,17 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// TODO Change name to FindChangePaths ?
 func (s *server) DiffTreeDiffStats(in *gitalypb.DiffTreeDiffStatsRequest, stream gitalypb.DiffService_DiffTreeDiffStatsServer) error {
 	if err := s.validateDiffTreeDiffStatsRequestParams(in); err != nil {
 		return err
 	}
 
-	var batch []*gitalypb.DiffStats
-
 	diffChunker := chunk.New(&diffTreeDiffStatsSender{stream: stream})
 
-	cmd, err := git.SafeCmd(stream.Context(), in.Repository, nil, git.SubCmd{
+	cmd, err := git.SafeStdinCmd(stream.Context(), in.Repository, nil, git.SubCmd{
 		Name:  "diff-tree",
 		Flags: []git.Option{git.Flag{Name: "--numstat"}, git.Flag{Name: "-z"}, git.Flag{Name: "--stdin"}, git.Flag{Name: "-c"}, git.Flag{Name: "-m"}, git.Flag{Name: "--no-commit-id"}},
-		Args:  in.GetCommits(),
 	})
 
 	if err != nil {
@@ -34,10 +33,29 @@ func (s *server) DiffTreeDiffStats(in *gitalypb.DiffTreeDiffStatsRequest, stream
 		return status.Errorf(codes.Internal, "%s: cmd: %v", "DiffStats", err)
 	}
 
-	if err := diff.ParseNumStats(batch, cmd, diffChunker); err != nil {
-		return err
+	parser := diff.NewDiffNumStatParser(cmd)
+
+	for _, commit := range in.GetCommits() {
+		fmt.Fprintf(cmd, "%v\n", commit)
+		numStat, err := parser.NextNumStat()
+
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return err
+		}
+
+		if err := diffChunker.Send(numStat.ToProto()); err != nil {
+			return fmt.Errorf("sending to chunker: %v", err)
+		}
 	}
 
+	// if err := diff.ParseNumStats(batch, cmd, diffChunker); err != nil {
+	// 	return err
+	// }
+        //
 	if err := cmd.Wait(); err != nil {
 		return status.Errorf(codes.Unavailable, "%s: %v", "DiffStats", err)
 	}
