@@ -43,7 +43,7 @@ func (parser *NumStatParser) NextNumStat() (*NumStat, error) {
 	result := &NumStat{}
 
 	data, err := parser.reader.ReadBytes(numStatDelimiter)
-	fmt.Println(err)
+
 	if err != nil {
 		return nil, err
 	}
@@ -96,10 +96,10 @@ func (parser *NumStatParser) NextNumStat() (*NumStat, error) {
 	return result, nil
 }
 
-func ParseNumStats(batch []*gitalypb.DiffStats, reader io.Reader, chunker *chunk.Chunker) error {
+func ParseNumStats(reader io.Reader, chunker *chunk.Chunker) error {
 	parser := NewDiffNumStatParser(reader)
 
-	for {
+	for i := 0 ; i < 10 ; i ++ {
 		stat, err := parser.NextNumStat()
 		if err != nil {
 			if err == io.EOF {
@@ -109,14 +109,9 @@ func ParseNumStats(batch []*gitalypb.DiffStats, reader io.Reader, chunker *chunk
 			return err
 		}
 
-		numStat := &gitalypb.DiffStats{
-			Additions: stat.Additions,
-			Deletions: stat.Deletions,
-			Path:      stat.Path,
-			OldPath:   stat.OldPath,
+		if err := chunker.Send(stat.ToProto()); err != nil {
+			return fmt.Errorf("sending to chunker: %v", err)
 		}
-
-		fmt.Println(numStat)
 	}
 
 	return nil

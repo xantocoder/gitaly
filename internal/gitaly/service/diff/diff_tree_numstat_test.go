@@ -20,7 +20,7 @@ func TestSuccessfulDiffTreeDiffStatsRequest(t *testing.T) {
 	testRepo, _, cleanupFn := testhelper.NewTestRepo(t)
 	defer cleanupFn()
 
-	commits := []string{"e4003da16c1c2c3fc4567700121b17bf8e591c6c", "57290e673a4c87f51294f5216672cbc58d485d25", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab"}
+	commits := []string{"e4003da16c1c2c3fc4567700121b17bf8e591c6c", "57290e673a4c87f51294f5216672cbc58d485d25", "8a0f2ee90d940bfb0ba1e14e8214b0649056e4ab", "d59c60028b053793cecfb4022de34602e1a9218e"}
 	rpcRequest := &gitalypb.DiffTreeDiffStatsRequest{Repository: testRepo, Commits: commits}
 
 	ctx, cancel := testhelper.Context()
@@ -38,64 +38,44 @@ func TestSuccessfulDiffTreeDiffStatsRequest(t *testing.T) {
 			Deletions: 1,
 		},
 		{
-			Path:      []byte("README.md"),
-			Additions: 1,
-			Deletions: 1,
-		},
-		{
-			Path:      []byte("gitaly/tab\tnewline\n file"),
-			Additions: 1,
+			Path:      []byte("gitaly/テスト.txt"),
+			Additions: 0,
 			Deletions: 0,
 		},
 		{
 			Path:      []byte("gitaly/deleted-file"),
-			Additions: 0,
-			Deletions: 1,
+			Additions: 1,
+			Deletions: 0,
 		},
 		{
 			Path:      []byte("gitaly/file-with-multiple-chunks"),
-			Additions: 28,
-			Deletions: 23,
-		},
-		{
-			Path:      []byte("gitaly/logo-white.png"),
-			Additions: 0,
+			Additions: 1387,
 			Deletions: 0,
 		},
 		{
 			Path:      []byte("gitaly/mode-file"),
-			Additions: 0,
+			Additions: 1,
 			Deletions: 0,
 		},
 		{
 			Path:      []byte("gitaly/mode-file-with-mods"),
-			Additions: 2,
-			Deletions: 1,
+			Additions: 1,
+			Deletions: 0,
+		},
+		{
+			Path:      []byte("gitaly/named-file"),
+			Additions: 1,
+			Deletions: 0,
 		},
 		{
 			Path:      []byte("gitaly/named-file-with-mods"),
-			Additions: 0,
-			Deletions: 1,
-		},
-		{
-			Path:      []byte("gitaly/no-newline-at-the-end"),
 			Additions: 1,
 			Deletions: 0,
 		},
 		{
-			Path:      []byte("gitaly/renamed-file"),
+			Path:      []byte("files/js/commit.js.coffee"),
 			Additions: 0,
-			Deletions: 0,
-		},
-		{
-			Path:      []byte("gitaly/renamed-file-with-mods"),
-			Additions: 1,
-			Deletions: 0,
-		},
-		{
-			Path:      []byte("gitaly/テスト.txt"),
-			Additions: 0,
-			Deletions: 0,
+			Deletions: 6,
 		},
 	}
 

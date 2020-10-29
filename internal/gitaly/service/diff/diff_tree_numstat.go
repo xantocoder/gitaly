@@ -2,7 +2,6 @@ package diff
 
 import (
 	"fmt"
-	"io"
 
 	"github.com/golang/protobuf/proto"
 	"gitlab.com/gitlab-org/gitaly/internal/git"
@@ -33,29 +32,16 @@ func (s *server) DiffTreeDiffStats(in *gitalypb.DiffTreeDiffStatsRequest, stream
 		return status.Errorf(codes.Internal, "%s: cmd: %v", "DiffStats", err)
 	}
 
-	parser := diff.NewDiffNumStatParser(cmd)
-
 	for _, commit := range in.GetCommits() {
 		fmt.Fprintf(cmd, "%v\n", commit)
-		numStat, err := parser.NextNumStat()
-
-		if err == io.EOF {
-			break
-		}
-
-		if err != nil {
-			return err
-		}
-
-		if err := diffChunker.Send(numStat.ToProto()); err != nil {
-			return fmt.Errorf("sending to chunker: %v", err)
-		}
 	}
 
-	// if err := diff.ParseNumStats(batch, cmd, diffChunker); err != nil {
-	// 	return err
-	// }
-        //
+	err = diff.ParseNumStats(cmd, diffChunker)
+
+	if err != nil {
+		return err
+	}
+
 	if err := cmd.Wait(); err != nil {
 		return status.Errorf(codes.Unavailable, "%s: %v", "DiffStats", err)
 	}

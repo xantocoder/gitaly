@@ -15,8 +15,6 @@ func (s *server) DiffStats(in *gitalypb.DiffStatsRequest, stream gitalypb.DiffSe
 		return err
 	}
 
-	var batch []*gitalypb.DiffStats
-
 	diffChunker := chunk.New(&diffStatSender{stream: stream})
 
 	cmd, err := git.SafeCmd(stream.Context(), in.Repository, nil, git.SubCmd{
@@ -32,7 +30,7 @@ func (s *server) DiffStats(in *gitalypb.DiffStatsRequest, stream gitalypb.DiffSe
 		return status.Errorf(codes.Internal, "%s: cmd: %v", "DiffStats", err)
 	}
 
-	if err := diff.ParseNumStats(batch, cmd, diffChunker); err != nil {
+	if err := diff.ParseNumStats(cmd, diffChunker); err != nil {
 		return err
 	}
 
