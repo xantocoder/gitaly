@@ -1,7 +1,6 @@
 package diff
 
 import (
-	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -107,16 +106,13 @@ func TestSuccessfulDiffTreeDiffStatsRequest(t *testing.T) {
 
 	for {
 		fetchedStats, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
 
 		require.NoError(t, err)
 
 		stats := fetchedStats.GetStats()
 
-		for index, fetchedStat := range stats {
-			expectedStat := expectedStats[index]
+		for index, expectedStat := range expectedStats {
+			fetchedStat := stats[index]
 
 			require.Equal(t, expectedStat.Path, fetchedStat.Path)
 			require.Equal(t, expectedStat.Additions, fetchedStat.Additions)
