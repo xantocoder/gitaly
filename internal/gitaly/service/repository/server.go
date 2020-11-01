@@ -18,6 +18,7 @@ type server struct {
 	locator              storage.Locator
 	cfg                  config.Gitlab
 	binDir               string
+	loggingCfg           config.Logging
 }
 
 // NewServer creates a new instance of a gRPC repo server
@@ -29,6 +30,7 @@ func NewServer(cfg config.Cfg, rs *rubyserver.Server, locator storage.Locator, i
 		internalGitalySocket: internalGitalySocket,
 		cfg:                  cfg.Gitlab,
 		binDir:               cfg.BinDir,
+		loggingCfg:           cfg.Logging,
 	}
 }
 
