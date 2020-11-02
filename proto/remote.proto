@@ -45,6 +45,11 @@ service RemoteService {
         op: ACCESSOR
       };
     }
+    rpc FetchRemoteWithStatus(FetchRemoteWithStatusRequest) returns (stream FetchRemoteWithStatusResponse) {
+      option(op_type) = {
+        op: MUTATOR
+      };
+    }
 }
 
 message AddRemoteRequest {
@@ -126,4 +131,37 @@ message ListRemotesResponse {
   }
 
   repeated Remote remotes = 1;
+}
+
+message FetchRemoteWithStatusRequest {
+  Repository repository = 1 [(target_repository)=true];
+  string remote = 2;
+  bool force = 3;
+  bool no_tags = 4;
+  int32 timeout = 5;
+  string ssh_key = 6;
+  string known_hosts = 7;
+  reserved 8;
+  bool no_prune = 9;
+  Remote remote_params = 10;
+}
+
+message FetchRemoteWithStatusResponse {
+  // Per `git fetch` manpage, OUTPUT section
+  enum Status {
+    FAST_FORWARD_UPDATE = 0; // ' '
+    FORCED_UPDATE = 1;       // '+'
+    PRUNED = 2;              // '-'
+    TAG_UPDATE = 3;          // 't'
+    FETCHED = 4;             // '*'
+    UPDATE_FAILED = 5;       // '!'
+    UNCHANGED = 6;           // '='
+  }
+
+  message RefUpdate {
+    Status status = 1;
+    string ref = 2;
+  }
+
+  repeated RefUpdate ref_updates = 1;
 }

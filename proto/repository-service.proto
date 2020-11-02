@@ -591,13 +591,6 @@ message SearchFilesByContentResponse {
   bool end_of_match = 3;
 }
 
-message Remote {
-  string url = 1;
-  string name = 2;
-  string http_authorization_header = 3;
-  repeated string mirror_refmaps = 4;
-}
-
 message FetchHTTPRemoteRequest {
   Repository repository = 1 [(target_repository)=true];
   Remote remote = 2;

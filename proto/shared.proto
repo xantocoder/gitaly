@@ -125,3 +125,10 @@ message GlobalOptions {
     // Treat pathspecs literally (i.e. no globbing, no pathspec magic)
     bool literal_pathspecs = 1;
 }
+
+message Remote {
+  string url = 1;
+  string name = 2;
+  string http_authorization_header = 3;
+  repeated string mirror_refmaps = 4;
+}
