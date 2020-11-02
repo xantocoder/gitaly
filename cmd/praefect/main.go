@@ -101,6 +101,7 @@ import (
 	"gitlab.com/gitlab-org/gitaly/internal/praefect/config"
 	"gitlab.com/gitlab-org/gitaly/internal/praefect/datastore"
 	"gitlab.com/gitlab-org/gitaly/internal/praefect/datastore/glsql"
+	"gitlab.com/gitlab-org/gitaly/internal/praefect/importer"
 	"gitlab.com/gitlab-org/gitaly/internal/praefect/metrics"
 	"gitlab.com/gitlab-org/gitaly/internal/praefect/nodes"
 	"gitlab.com/gitlab-org/gitaly/internal/praefect/nodes/tracker"
@@ -337,6 +338,27 @@ func run(cfgs []starter.Config, conf config.Config) error {
 
 			return nil
 		})
+	}
+
+	if db != nil {
+		go func() {
+			for result := range importer.New(nodeManager, conf.VirtualStorageNames(), db).Run(ctx) {
+				if result.Error != nil {
+					logger.WithFields(logrus.Fields{
+						"virtual_storage": result.VirtualStorage,
+						logrus.ErrorKey:   result.Error,
+					}).Error("importing repositories to database failed")
+					continue
+				}
+
+				logger.WithFields(logrus.Fields{
+					"virtual_storage": result.VirtualStorage,
+					"relative_paths":  result.RelativePaths,
+				}).Info("imported repositories to database")
+			}
+
+			logger.Info("repository importer finished")
+		}()
 	}
 
 	if err := b.Start(); err != nil {
