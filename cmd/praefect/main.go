@@ -229,18 +229,29 @@ func run(cfgs []starter.Config, conf config.Config) error {
 		db = dbConn
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	var queue datastore.ReplicationEventQueue
 	var rs datastore.RepositoryStore
+	var sp nodes.StorageProvider
+	var metricsCollectors []prometheus.Collector
+
 	if conf.MemoryQueueEnabled {
 		queue = datastore.NewMemoryReplicationEventQueue(conf)
 		rs = datastore.NewMemoryRepositoryStore(conf.StorageNames())
+		sp = datastore.DumbStorageProvider{RepositoryStore: rs}
 	} else {
 		queue = datastore.NewPostgresReplicationEventQueue(db)
 		rs = datastore.NewPostgresRepositoryStore(db, conf.StorageNames())
-	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+		storagesCache, err := upToDateStoragesCache(ctx, conf, rs)
+		if err != nil {
+			return err
+		}
+		metricsCollectors = append(metricsCollectors, storagesCache)
+		sp = storagesCache
+	}
 
 	var errTracker tracker.ErrorTracker
 
@@ -258,55 +269,53 @@ func run(cfgs []starter.Config, conf config.Config) error {
 		}
 	}
 
-	nodeManager, err := nodes.NewManager(logger, conf, db, rs, nodeLatencyHistogram, protoregistry.GitalyProtoPreregistered, errTracker)
+	nodeManager, err := nodes.NewManager(logger, conf, db, rs, sp, nodeLatencyHistogram, protoregistry.GitalyProtoPreregistered, errTracker)
 	if err != nil {
 		return err
 	}
 	nodeManager.Start(conf.Failover.BootstrapInterval.Duration(), conf.Failover.MonitorInterval.Duration())
 	logger.Info("background started: gitaly nodes health monitoring")
 
-	var (
-		// top level server dependencies
-		transactionManager = transactions.NewManager(conf)
+	// top level server dependencies
+	transactionManager := transactions.NewManager(conf)
+	metricsCollectors = append(metricsCollectors, transactionManager)
 
-		coordinator = praefect.NewCoordinator(
-			queue,
-			rs,
-			praefect.NewNodeManagerRouter(nodeManager, rs),
-			transactionManager,
-			conf,
-			protoregistry.GitalyProtoPreregistered,
-		)
-
-		repl = praefect.NewReplMgr(
-			logger,
-			conf.VirtualStorageNames(),
-			queue,
-			rs,
-			nodeManager,
-			praefect.NodeSetFromNodeManager(nodeManager),
-			praefect.WithDelayMetric(delayMetric),
-			praefect.WithLatencyMetric(latencyMetric),
-			praefect.WithDequeueBatchSize(conf.Replication.BatchSize),
-		)
-		srvFactory = praefect.NewServerFactory(
-			conf,
-			logger,
-			coordinator.StreamDirector,
-			nodeManager,
-			transactionManager,
-			queue,
-			rs,
-			protoregistry.GitalyProtoPreregistered,
-		)
-	)
-
-	prometheus.MustRegister(
+	coordinator := praefect.NewCoordinator(
+		queue,
+		rs,
+		praefect.NewNodeManagerRouter(nodeManager, rs),
 		transactionManager,
-		coordinator,
-		repl,
-		datastore.NewRepositoryStoreCollector(logger, rs, nodeManager),
+		conf,
+		protoregistry.GitalyProtoPreregistered,
 	)
+	metricsCollectors = append(metricsCollectors, coordinator)
+
+	repl := praefect.NewReplMgr(
+		logger,
+		conf.VirtualStorageNames(),
+		queue,
+		rs,
+		nodeManager,
+		praefect.NodeSetFromNodeManager(nodeManager),
+		praefect.WithDelayMetric(delayMetric),
+		praefect.WithLatencyMetric(latencyMetric),
+		praefect.WithDequeueBatchSize(conf.Replication.BatchSize),
+	)
+	metricsCollectors = append(metricsCollectors, repl)
+
+	srvFactory := praefect.NewServerFactory(
+		conf,
+		logger,
+		coordinator.StreamDirector,
+		nodeManager,
+		transactionManager,
+		queue,
+		rs,
+		protoregistry.GitalyProtoPreregistered,
+	)
+
+	metricsCollectors = append(metricsCollectors, datastore.NewRepositoryStoreCollector(logger, rs, nodeManager))
+	prometheus.MustRegister(metricsCollectors...)
 
 	b, err := bootstrap.New()
 	if err != nil {
@@ -418,4 +427,37 @@ func initDatabase(logger *logrus.Entry, conf config.Config) (*sql.DB, func(), er
 	}
 
 	return db, closedb, nil
+}
+
+func upToDateStoragesCache(ctx context.Context, conf config.Config, rs datastore.RepositoryStore) (*datastore.UpToDateStoragesCache, error) {
+	storagesCache := datastore.NewUpToDateStoragesCache(logger, rs, time.Minute, conf.VirtualStorageNames())
+
+	if err := startListen(ctx, conf, "repositories_updates", storagesCache); err != nil {
+		return nil, err
+	}
+
+	if err := startListen(ctx, conf, "storage_repositories_updates", storagesCache); err != nil {
+		return nil, err
+	}
+
+	return storagesCache, nil
+}
+
+func startListen(ctx context.Context, conf config.Config, channel string, handler glsql.ListenHandler) error {
+	repositoryOpts := datastore.DefaultPostgresListenerOpts
+	repositoryOpts.Addr = conf.DB.ToPQString(true)
+	repositoryOpts.Channel = channel
+
+	repositoriesListener, err := datastore.NewPostgresListener(repositoryOpts)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		if err := repositoriesListener.Listen(ctx, handler); err != nil {
+			logger.WithError(err).WithField("channel", repositoryOpts.Channel).Errorf("stopped listening storage notifications")
+		}
+	}()
+
+	return nil
 }
