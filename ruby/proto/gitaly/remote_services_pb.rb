@@ -21,6 +21,7 @@ module Gitaly
       rpc :FindRemoteRepository, Gitaly::FindRemoteRepositoryRequest, Gitaly::FindRemoteRepositoryResponse
       rpc :FindRemoteRootRef, Gitaly::FindRemoteRootRefRequest, Gitaly::FindRemoteRootRefResponse
       rpc :ListRemotes, Gitaly::ListRemotesRequest, stream(Gitaly::ListRemotesResponse)
+      rpc :FetchRemoteWithStatus, Gitaly::FetchRemoteWithStatusRequest, stream(Gitaly::FetchRemoteWithStatusResponse)
     end
 
     Stub = Service.rpc_stub_class

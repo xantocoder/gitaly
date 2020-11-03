@@ -65,6 +65,33 @@ Google::Protobuf::DescriptorPool.generated_pool.build do
       optional :fetch_url, :string, 2
       optional :push_url, :string, 3
     end
+    add_message "gitaly.FetchRemoteWithStatusRequest" do
+      optional :repository, :message, 1, "gitaly.Repository"
+      optional :remote, :string, 2
+      optional :force, :bool, 3
+      optional :no_tags, :bool, 4
+      optional :timeout, :int32, 5
+      optional :ssh_key, :string, 6
+      optional :known_hosts, :string, 7
+      optional :no_prune, :bool, 9
+      optional :remote_params, :message, 10, "gitaly.Remote"
+    end
+    add_message "gitaly.FetchRemoteWithStatusResponse" do
+      repeated :ref_updates, :message, 1, "gitaly.FetchRemoteWithStatusResponse.RefUpdate"
+    end
+    add_message "gitaly.FetchRemoteWithStatusResponse.RefUpdate" do
+      optional :status, :enum, 1, "gitaly.FetchRemoteWithStatusResponse.Status"
+      optional :ref, :string, 2
+    end
+    add_enum "gitaly.FetchRemoteWithStatusResponse.Status" do
+      value :FAST_FORWARD_UPDATE, 0
+      value :FORCED_UPDATE, 1
+      value :PRUNED, 2
+      value :TAG_UPDATE, 3
+      value :FETCHED, 4
+      value :UPDATE_FAILED, 5
+      value :UNCHANGED, 6
+    end
   end
 end
 
@@ -84,4 +111,8 @@ module Gitaly
   ListRemotesRequest = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.ListRemotesRequest").msgclass
   ListRemotesResponse = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.ListRemotesResponse").msgclass
   ListRemotesResponse::Remote = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.ListRemotesResponse.Remote").msgclass
+  FetchRemoteWithStatusRequest = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.FetchRemoteWithStatusRequest").msgclass
+  FetchRemoteWithStatusResponse = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.FetchRemoteWithStatusResponse").msgclass
+  FetchRemoteWithStatusResponse::RefUpdate = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.FetchRemoteWithStatusResponse.RefUpdate").msgclass
+  FetchRemoteWithStatusResponse::Status = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.FetchRemoteWithStatusResponse.Status").enummodule
 end

@@ -63,6 +63,12 @@ Google::Protobuf::DescriptorPool.generated_pool.build do
     add_message "gitaly.GlobalOptions" do
       optional :literal_pathspecs, :bool, 1
     end
+    add_message "gitaly.Remote" do
+      optional :url, :string, 1
+      optional :name, :string, 2
+      optional :http_authorization_header, :string, 3
+      repeated :mirror_refmaps, :string, 4
+    end
     add_enum "gitaly.ObjectType" do
       value :UNKNOWN, 0
       value :COMMIT, 1
@@ -89,6 +95,7 @@ module Gitaly
   ObjectPool = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.ObjectPool").msgclass
   PaginationParameter = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.PaginationParameter").msgclass
   GlobalOptions = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.GlobalOptions").msgclass
+  Remote = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.Remote").msgclass
   ObjectType = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.ObjectType").enummodule
   SignatureType = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("gitaly.SignatureType").enummodule
 end
