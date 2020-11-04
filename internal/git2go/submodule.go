@@ -10,6 +10,11 @@ import (
 	"gitlab.com/gitlab-org/gitaly/internal/gitaly/config"
 )
 
+const (
+	LegacyErrPrefixInvalidBranch        = "Invalid branch"
+	LegacyErrPrefixInvalidSubmodulePath = "Invalid submodule path"
+)
+
 // SubmoduleCommand instructs how to commit a submodule update to a repo
 type SubmoduleCommand struct {
 	// Repository is the path to commit the submodule change

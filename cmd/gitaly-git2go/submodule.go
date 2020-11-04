@@ -49,7 +49,7 @@ func (cmd *submoduleSubcommand) Run(context.Context, io.Reader, io.Writer) error
 	fullBranchRefName := "refs/heads/" + request.Branch
 	o, err := repo.RevparseSingle(fullBranchRefName)
 	if err != nil {
-		return errors.New("Invalid branch") //nolint
+		return fmt.Errorf("%s: %w", git2go.LegacyErrPrefixInvalidBranch, err) //nolint
 	}
 	defer o.Free()
 
@@ -77,7 +77,10 @@ func (cmd *submoduleSubcommand) Run(context.Context, io.Reader, io.Writer) error
 
 	smEntry, err := index.EntryByPath(request.Submodule, 0)
 	if err != nil {
-		return errors.New("Invalid submodule path") //nolint
+		return fmt.Errorf(
+			"%s: %w",
+			git2go.LegacyErrPrefixInvalidSubmodulePath, err,
+		) //nolint
 	}
 
 	if smEntry.Id.Cmp(smCommitOID) == 0 {
@@ -88,7 +91,10 @@ func (cmd *submoduleSubcommand) Run(context.Context, io.Reader, io.Writer) error
 	}
 
 	if smEntry.Mode != git.FilemodeCommit {
-		return errors.New("Invalid submodule path") //nolint
+		return fmt.Errorf(
+			"%s: %w",
+			git2go.LegacyErrPrefixInvalidSubmodulePath, err,
+		) //nolint
 	}
 
 	newEntry := *smEntry      // copy by value

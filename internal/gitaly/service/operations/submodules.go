@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"gitlab.com/gitlab-org/gitaly/internal/git"
 	"gitlab.com/gitlab-org/gitaly/internal/git2go"
 	"gitlab.com/gitlab-org/gitaly/internal/gitaly/rubyserver"
@@ -107,9 +108,34 @@ func (s *server) userUpdateSubmodule(ctx context.Context, req *gitalypb.UserUpda
 	if err != nil {
 		errStr := strings.TrimPrefix(err.Error(), "submodule: ")
 		errStr = strings.TrimSpace(errStr)
-		return &gitalypb.UserUpdateSubmoduleResponse{
-			CommitError: errStr,
-		}, nil
+
+		var resp *gitalypb.UserUpdateSubmoduleResponse
+		for _, legacyErr := range []string{
+			git2go.LegacyErrPrefixInvalidBranch,
+			git2go.LegacyErrPrefixInvalidSubmodulePath,
+		} {
+			if strings.HasPrefix(errStr, legacyErr) {
+				resp = &gitalypb.UserUpdateSubmoduleResponse{
+					CommitError: legacyErr,
+				}
+				ctxlogrus.
+					Extract(ctx).
+					WithError(err).
+					Error("UserUpdateSubmodule: git2go subcommand failure")
+				break
+			}
+
+		}
+		if strings.Contains(errStr, "is already at") {
+			resp = &gitalypb.UserUpdateSubmoduleResponse{
+				CommitError: errStr,
+			}
+		}
+		if resp != nil {
+			return resp, nil
+		}
+		return nil, err
+
 	}
 
 	if err := s.updateReferenceWithHooks(
