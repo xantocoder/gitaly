@@ -667,11 +667,7 @@ func (c *Coordinator) newRequestFinalizer(
 func (c *Coordinator) ensureCorrelationID(ctx context.Context, targetRepo *gitalypb.Repository) string {
 	corrID := correlation.ExtractFromContext(ctx)
 	if corrID == "" {
-		var err error
-		corrID, err = correlation.RandomID()
-		if err != nil {
-			corrID = generatePseudorandomCorrelationID(targetRepo)
-		}
+		corrID = correlation.SafeRandomID()
 	}
 	return corrID
 }

@@ -3,11 +3,9 @@ package gitalyssh
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
@@ -35,8 +33,7 @@ const (
 )
 
 var (
-	envInjector       = tracing.NewEnvInjector()
-	correlationIDRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+	envInjector = tracing.NewEnvInjector()
 )
 
 func UploadPackEnv(ctx context.Context, req *gitalypb.SSHUploadPackRequest) ([]string, error) {
@@ -96,12 +93,5 @@ func getCorrelationID(ctx context.Context) string {
 		return correlationID
 	}
 
-	correlationID, _ = correlation.RandomID()
-	if correlationID == "" {
-		source := []byte("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-		correlationIDRand.Shuffle(len(source), func(i, j int) { source[i], source[j] = source[j], source[i] })
-		return correlationID[:32]
-	}
-
-	return correlationID
+	return correlation.SafeRandomID()
 }
