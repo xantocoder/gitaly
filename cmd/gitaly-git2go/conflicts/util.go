@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// GetIndexConflicts returns a list of conflicts contained in the index
 func GetIndexConflicts(repo *git.Repository, index *git.Index) (git2go.ConflictsResult, error) {
 	var result git2go.ConflictsResult
 

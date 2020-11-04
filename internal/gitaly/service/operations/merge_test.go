@@ -1,7 +1,6 @@
 package operations
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -664,16 +663,12 @@ func testConflictsOnUserMergeToRefRequest(t *testing.T, ctx context.Context) {
 		resp, err := client.UserMergeToRef(ctx, request)
 		require.NoError(t, err)
 
-		var buf bytes.Buffer
-		cmd := exec.Command(command.GitPath(), "-C", testRepoPath, "show", resp.CommitId)
-		cmd.Stdout = &buf
-		require.NoError(t, cmd.Run())
+		output := text.ChompBytes(testhelper.MustRunCommand(t, nil, "git", "-C", testRepoPath, "show", resp.CommitId))
 
-		bufStr := buf.String()
-		require.Contains(t, bufStr, "+<<<<<<< files/ruby/popen.rb")
-		require.Contains(t, bufStr, "+>>>>>>> files/ruby/popen.rb")
-		require.Contains(t, bufStr, "+<<<<<<< files/ruby/regex.rb")
-		require.Contains(t, bufStr, "+>>>>>>> files/ruby/regex.rb")
+		require.Contains(t, output, "+<<<<<<< files/ruby/popen.rb")
+		require.Contains(t, output, "+>>>>>>> files/ruby/popen.rb")
+		require.Contains(t, output, "+<<<<<<< files/ruby/regex.rb")
+		require.Contains(t, output, "+>>>>>>> files/ruby/regex.rb")
 	})
 
 	t.Run("disallow conflicts to be merged", func(t *testing.T) {

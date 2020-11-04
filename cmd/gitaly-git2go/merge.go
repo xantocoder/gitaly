@@ -12,6 +12,7 @@ import (
 	"time"
 
 	git "github.com/libgit2/git2go/v30"
+	"gitlab.com/gitlab-org/gitaly/cmd/gitaly-git2go/conflicts"
 	"gitlab.com/gitlab-org/gitaly/internal/git2go"
 )
 
@@ -57,8 +58,8 @@ func (cmd *mergeSubcommand) Run(context.Context, io.Reader, io.Writer) error {
 	}
 	defer index.Free()
 
-	if index.HasConflicts() {
-		return errors.New("could not auto-merge due to conflicts")
+	if err := processConflicts(repo, index, request.AllowConflicts); err != nil {
+		return err
 	}
 
 	tree, err := index.WriteTreeTo(repo)
@@ -78,6 +79,44 @@ func (cmd *mergeSubcommand) Run(context.Context, io.Reader, io.Writer) error {
 
 	if err := response.SerializeTo(os.Stdout); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func processConflicts(repo *git.Repository, index *git.Index, allowConflicts bool) error {
+	if !index.HasConflicts() {
+		return nil
+	}
+
+	if !allowConflicts {
+		return errors.New("could not auto-merge due to conflicts")
+	}
+
+	result, err := conflicts.GetIndexConflicts(repo, index)
+	if err != nil {
+		return fmt.Errorf("could not get conflicts content: %w", err)
+	}
+
+	odb, err := repo.Odb()
+	if err != nil {
+		return fmt.Errorf("could not get odb for adding conflicts content: %w", err)
+	}
+
+	for _, conflict := range result.Conflicts {
+		oid, err := odb.Write(conflict.Content, git.ObjectBlob)
+		if err != nil {
+			return fmt.Errorf("could not write conflicts content to repo: %w", err)
+		}
+
+		entry := &git.IndexEntry{Path: conflict.Ancestor.Path, Id: oid, Mode: git.FilemodeBlob}
+		if err := index.Add(entry); err != nil {
+			return fmt.Errorf("could not add conflicts content to index: %w", err)
+		}
+
+		if err := index.RemoveConflict(conflict.Ancestor.Path); err != nil {
+			return fmt.Errorf("could not resolve conflicts: %w", err)
+		}
 	}
 
 	return nil
