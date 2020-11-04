@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"time"
 
 	git "github.com/libgit2/git2go/v30"
@@ -52,66 +51,63 @@ func (cmd *submoduleSubcommand) Run(context.Context, io.Reader, io.Writer) error
 	if err != nil {
 		return errors.New("Invalid branch") //nolint
 	}
+	defer o.Free()
 
 	startCommit, err := o.AsCommit()
 	if err != nil {
 		return fmt.Errorf("peeling %s as a commit: %w", o.Id(), err)
 	}
+	defer startCommit.Free()
 
 	rootTree, err := startCommit.Tree()
 	if err != nil {
 		return fmt.Errorf("root tree from starting commit: %w", err)
 	}
+	defer rootTree.Free()
 
-	smParentDir := filepath.Dir(request.Submodule)
-	parentTree, err := parentTree(smParentDir, rootTree, repo)
+	index, err := git.NewIndex()
 	if err != nil {
-		return fmt.Errorf("parent tree of submodule entry: %w", err)
+		return fmt.Errorf("creating new index: %w", err)
+	}
+	defer index.Free()
+
+	if err := index.ReadTree(rootTree); err != nil {
+		return fmt.Errorf("reading root tree into index: %w", err)
 	}
 
-	smBasePath := filepath.Base(request.Submodule)
-	smEntry := parentTree.EntryByName(smBasePath)
-	if smEntry == nil {
-		return errors.New("Invalid submodule path") //nolint
-	}
-	if smEntry.Type != git.ObjectCommit {
+	smEntry, err := index.EntryByPath(request.Submodule, 0)
+	if err != nil {
 		return errors.New("Invalid submodule path") //nolint
 	}
 
-	if smEntry.Id.Equal(smCommitOID) {
+	if smEntry.Id.Cmp(smCommitOID) == 0 {
 		return fmt.Errorf(
 			"The submodule %s is already at %s",
 			request.Submodule, request.CommitSHA,
-		) //nolint
+		)
 	}
 
-	parentTreeBuilder, err := repo.TreeBuilderFromTree(parentTree)
+	if smEntry.Mode != git.FilemodeCommit {
+		return errors.New("Invalid submodule path") //nolint
+	}
+
+	newEntry := *smEntry      // copy by value
+	newEntry.Id = smCommitOID // assign new commit SHA
+	if err := index.Add(&newEntry); err != nil {
+		return fmt.Errorf("add new submodule entry to index: %w", err)
+	}
+
+	newRootTreeOID, err := index.WriteTreeTo(repo)
 	if err != nil {
-		return fmt.Errorf("tree builder for submodule entry: %w", err)
-	}
-
-	if err := parentTreeBuilder.Insert(
-		smBasePath,
-		smCommitOID,
-		git.FilemodeCommit,
-	); err != nil {
-		return fmt.Errorf("inserting submodule entry: %w", err)
-	}
-
-	newTreeOID, err := parentTreeBuilder.Write()
-	if err != nil {
-		return fmt.Errorf("writing tree entry for submodule: %w", err)
-	}
-
-	newRootTreeOID, err := updateTreeAncestors(repo, rootTree, smParentDir, smBasePath, newTreeOID)
-	if err != nil {
-		return fmt.Errorf("updating submodule tree ancestors: %w", err)
+		return fmt.Errorf("write index to repo: %w", err)
 	}
 
 	newTree, err := repo.LookupTree(newRootTreeOID)
 	if err != nil {
 		return fmt.Errorf("looking up new submodule entry root tree: %w", err)
 	}
+	defer newTree.Free()
+
 	committer := git.Signature(
 		git2go.NewSignature(
 			request.AuthorName,
@@ -134,89 +130,4 @@ func (cmd *submoduleSubcommand) Run(context.Context, io.Reader, io.Writer) error
 	return git2go.SubmoduleResult{
 		CommitID: newCommitOID.String(),
 	}.SerializeTo(os.Stdout)
-}
-
-func parentTree(smParentDir string, rootTree *git.Tree, repo *git.Repository) (*git.Tree, error) {
-	if smParentDir == "" || smParentDir == "." {
-		return rootTree, nil
-	}
-	parentEntry, err := rootTree.EntryByPath(smParentDir)
-	if err != nil {
-		return nil, err
-	}
-
-	parentTree, err := repo.LookupTree(parentEntry.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	return parentTree, nil
-}
-
-// updateTreeAncestors will traverse up the tree ancestors and update the entry
-// for the new tree OID.
-func updateTreeAncestors(repo *git.Repository, rootTree *git.Tree, smParentDir, smBasePath string, newTreeOID *git.Oid) (_ *git.Oid, err error) {
-	if smParentDir == "." {
-		return newTreeOID, nil // root tree doesn't require traversal
-	}
-	var (
-		tPath = smParentDir
-		tName = smBasePath
-		tOID  = newTreeOID
-	)
-	defer func() {
-		// decorate any returned errors with details about which tree
-		// entry failed
-		if err != nil {
-			err = fmt.Errorf(
-				"tree entry for path:%q, name: %q, oid: %q: %w",
-				tPath, tName, tOID, err,
-			)
-		}
-	}()
-	for {
-		tName = filepath.Base(tPath)
-		tPath = filepath.Dir(tPath)
-
-		var (
-			tb  *git.TreeBuilder
-			err error
-		)
-		if tPath == "." {
-			tb, err = repo.TreeBuilderFromTree(rootTree)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			e, err := rootTree.EntryByPath(tPath)
-			if err != nil {
-				return nil, err
-			}
-
-			te, err := repo.LookupTree(e.Id)
-			if err != nil {
-				return nil, err
-			}
-
-			tb, err = repo.TreeBuilderFromTree(te)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if err := tb.Insert(tName, tOID, git.FilemodeTree); err != nil {
-			return nil, err
-		}
-
-		tOID, err = tb.Write()
-		if err != nil {
-			return nil, err
-		}
-
-		if tPath == "." {
-			break // processed the root tree, no more to traverse
-		}
-	}
-
-	return tOID, nil
 }
