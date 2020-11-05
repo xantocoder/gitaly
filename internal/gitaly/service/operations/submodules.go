@@ -101,7 +101,7 @@ func (s *server) userUpdateSubmodule(ctx context.Context, req *gitalypb.UserUpda
 		AuthorName: string(req.GetUser().GetName()),
 		AuthorDate: time.Now(),
 		Branch:     string(req.GetBranch()),
-		CommitSHA:  string(req.GetCommitSha()),
+		CommitSHA:  req.GetCommitSha(),
 		Submodule:  string(req.GetSubmodule()),
 		Message:    string(req.GetCommitMessage()),
 	}.Run(ctx, s.cfg)
