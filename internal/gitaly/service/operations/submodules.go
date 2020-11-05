@@ -124,7 +124,6 @@ func (s *server) userUpdateSubmodule(ctx context.Context, req *gitalypb.UserUpda
 					Error("UserUpdateSubmodule: git2go subcommand failure")
 				break
 			}
-
 		}
 		if strings.Contains(errStr, "is already at") {
 			resp = &gitalypb.UserUpdateSubmoduleResponse{
@@ -135,7 +134,6 @@ func (s *server) userUpdateSubmodule(ctx context.Context, req *gitalypb.UserUpda
 			return resp, nil
 		}
 		return nil, err
-
 	}
 
 	if err := s.updateReferenceWithHooks(
