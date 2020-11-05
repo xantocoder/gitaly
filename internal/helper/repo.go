@@ -7,6 +7,7 @@ import (
 	"gitlab.com/gitlab-org/gitaly/internal/git/repository"
 	"gitlab.com/gitlab-org/gitaly/internal/gitaly/config"
 	"gitlab.com/gitlab-org/gitaly/internal/storage"
+	"gitlab.com/gitlab-org/gitaly/proto/go/gitalypb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -100,4 +101,15 @@ func GetObjectDirectoryPath(repo repository.GitRepo) (string, error) {
 	}
 
 	return fullPath, nil
+}
+
+// ProtoRepoFromRepo allows object pools and repository abstractions to be used
+// in places that require a concrete type
+func ProtoRepoFromRepo(repo repository.GitRepo) *gitalypb.Repository {
+	return &gitalypb.Repository{
+		StorageName:                   repo.GetStorageName(),
+		GitAlternateObjectDirectories: repo.GetGitAlternateObjectDirectories(),
+		GitObjectDirectory:            repo.GetGitObjectDirectory(),
+		RelativePath:                  repo.GetRelativePath(),
+	}
 }
