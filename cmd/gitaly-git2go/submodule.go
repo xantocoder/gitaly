@@ -83,10 +83,11 @@ func (cmd *submoduleSubcommand) Run(_ context.Context, _ io.Reader, w io.Writer)
 	}
 
 	if smEntry.Id.Cmp(smCommitOID) == 0 {
+		//nolint
 		return fmt.Errorf(
 			"The submodule %s is already at %s",
 			request.Submodule, request.CommitSHA,
-		) //nolint
+		)
 	}
 
 	if smEntry.Mode != git.FilemodeCommit {
