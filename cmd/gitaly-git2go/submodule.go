@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	git "github.com/libgit2/git2go/v30"
@@ -25,7 +24,7 @@ func (cmd *submoduleSubcommand) Flags() *flag.FlagSet {
 	return flags
 }
 
-func (cmd *submoduleSubcommand) Run(context.Context, io.Reader, io.Writer) error {
+func (cmd *submoduleSubcommand) Run(_ context.Context, _ io.Reader, w io.Writer) error {
 	request, err := git2go.SubmoduleCommandFromSerialized(cmd.request)
 	if err != nil {
 		return fmt.Errorf("deserializing submodule command request: %w", err)
@@ -42,7 +41,7 @@ func (cmd *submoduleSubcommand) Run(context.Context, io.Reader, io.Writer) error
 
 	repo, err := git.OpenRepository(request.Repository)
 	if err != nil {
-		return fmt.Errorf("could not open repository: %w", err)
+		return fmt.Errorf("open repository: %w", err)
 	}
 	defer repo.Free()
 
@@ -135,5 +134,5 @@ func (cmd *submoduleSubcommand) Run(context.Context, io.Reader, io.Writer) error
 
 	return git2go.SubmoduleResult{
 		CommitID: newCommitOID.String(),
-	}.SerializeTo(os.Stdout)
+	}.SerializeTo(w)
 }
