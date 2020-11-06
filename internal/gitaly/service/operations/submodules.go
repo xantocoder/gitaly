@@ -87,7 +87,10 @@ func (s *server) userUpdateSubmodule(ctx context.Context, req *gitalypb.UserUpda
 
 	branchRef, err := repo.GetBranch(ctx, string(req.GetBranch()))
 	if err != nil {
-		return nil, helper.ErrInvalidArgumentf("Cannot find branch") //nolint
+		if errors.Is(err, git.ErrReferenceNotFound) {
+			return nil, helper.ErrInvalidArgumentf("Cannot find branch") //nolint
+		}
+		return nil, err
 	}
 
 	repoPath, err := s.locator.GetRepoPath(req.GetRepository())
