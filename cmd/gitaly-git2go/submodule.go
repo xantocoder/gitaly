@@ -43,32 +43,27 @@ func (cmd *submoduleSubcommand) Run(_ context.Context, _ io.Reader, w io.Writer)
 	if err != nil {
 		return fmt.Errorf("open repository: %w", err)
 	}
-	defer repo.Free()
 
 	fullBranchRefName := "refs/heads/" + request.Branch
 	o, err := repo.RevparseSingle(fullBranchRefName)
 	if err != nil {
 		return fmt.Errorf("%s: %w", git2go.LegacyErrPrefixInvalidBranch, err) //nolint
 	}
-	defer o.Free()
 
 	startCommit, err := o.AsCommit()
 	if err != nil {
 		return fmt.Errorf("peeling %s as a commit: %w", o.Id(), err)
 	}
-	defer startCommit.Free()
 
 	rootTree, err := startCommit.Tree()
 	if err != nil {
 		return fmt.Errorf("root tree from starting commit: %w", err)
 	}
-	defer rootTree.Free()
 
 	index, err := git.NewIndex()
 	if err != nil {
 		return fmt.Errorf("creating new index: %w", err)
 	}
-	defer index.Free()
 
 	if err := index.ReadTree(rootTree); err != nil {
 		return fmt.Errorf("reading root tree into index: %w", err)
@@ -112,7 +107,6 @@ func (cmd *submoduleSubcommand) Run(_ context.Context, _ io.Reader, w io.Writer)
 	if err != nil {
 		return fmt.Errorf("looking up new submodule entry root tree: %w", err)
 	}
-	defer newTree.Free()
 
 	committer := git.Signature(
 		git2go.NewSignature(
