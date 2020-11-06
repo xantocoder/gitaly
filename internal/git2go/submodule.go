@@ -10,9 +10,11 @@ import (
 	"gitlab.com/gitlab-org/gitaly/internal/gitaly/config"
 )
 
+// Error strings present in the legacy Ruby implementation
 const (
 	LegacyErrPrefixInvalidBranch        = "Invalid branch"
 	LegacyErrPrefixInvalidSubmodulePath = "Invalid submodule path"
+	LegacyErrPrefixFailedCommit         = "Failed to create commit"
 )
 
 // SubmoduleCommand instructs how to commit a submodule update to a repo

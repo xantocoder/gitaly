@@ -113,6 +113,7 @@ func (s *server) userUpdateSubmodule(ctx context.Context, req *gitalypb.UserUpda
 		for _, legacyErr := range []string{
 			git2go.LegacyErrPrefixInvalidBranch,
 			git2go.LegacyErrPrefixInvalidSubmodulePath,
+			git2go.LegacyErrPrefixFailedCommit,
 		} {
 			if strings.HasPrefix(errStr, legacyErr) {
 				resp = &gitalypb.UserUpdateSubmoduleResponse{

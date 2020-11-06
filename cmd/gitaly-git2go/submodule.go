@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -124,7 +123,11 @@ func (cmd *submoduleSubcommand) Run(_ context.Context, _ io.Reader, w io.Writer)
 		startCommit,
 	)
 	if err != nil {
-		return errors.New("Failed to create commit") //nolint
+		// nolint
+		return fmt.Errorf(
+			"%s: %w",
+			git2go.LegacyErrPrefixFailedCommit, err,
+		)
 	}
 
 	return git2go.SubmoduleResult{
