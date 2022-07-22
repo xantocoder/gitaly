@@ -177,7 +177,7 @@ GEM
     thread_safe (0.3.6)
     thrift (0.11.0.0)
     timecop (0.9.1)
-    tzinfo (1.2.7)
+    tzinfo (1.2.10)
       thread_safe (~> 0.1)
     unicode-display_width (1.7.0)
     unparser (0.4.7)
